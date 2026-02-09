@@ -16,8 +16,18 @@ const games = new Map<GameId, ReturnType<typeof createGameState>>();
 const MAX_PLAYERS = 4;
 
 io.on("connection", (socket) => {
-  socket.on("game:create", (_payload: unknown, callback?: (response: { ok: true; gameId: string } | { ok: false; error: string }) => void) => {
-    const gameId = crypto.randomUUID();
+  socket.on("game:create", (payload: { gameId?: string } | null, callback?: (response: { ok: true; gameId: string } | { ok: false; error: string }) => void) => {
+    const requestedId = typeof payload?.gameId === "string" ? payload.gameId.trim() : "";
+    if (requestedId && games.has(requestedId)) {
+      callback?.({ ok: false, error: "Game ID already in use" });
+      return socket.emit("game:error", "Game ID already in use");
+    }
+    if (payload?.gameId !== undefined && !requestedId) {
+      callback?.({ ok: false, error: "Game ID cannot be blank" });
+      return socket.emit("game:error", "Game ID cannot be blank");
+    }
+
+    const gameId = requestedId || crypto.randomUUID();
     const state = createGameState(gameId);
     games.set(gameId, state);
     socket.join(gameId);
