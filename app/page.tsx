@@ -10,6 +10,7 @@ export default function Home() {
 
   const [gameCode, setGameCode] = useState("");
   const [playerName, setPlayerName] = useState("Player");
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     const storedName = window.localStorage.getItem("grapple.playerName");
@@ -23,17 +24,32 @@ export default function Home() {
 
   function createGame() {
     window.localStorage.setItem("grapple.playerName", playerName);
-    socket.emit("game:create", null, (response: { ok: boolean; gameId?: string }) => {
-      if (response.ok && response.gameId) {
-        router.push(`/game/${response.gameId}`);
-      }
-    });
+    const requestedId = gameCode.trim();
+    setErrorMessage("");
+    socket.emit(
+      "game:create",
+      requestedId ? { gameId: requestedId } : null,
+      (response: { ok: boolean; gameId?: string; error?: string }) => {
+        if (response.ok && response.gameId) {
+          router.push(`/game/${response.gameId}`);
+          return;
+        }
+        if (response.error) {
+          setErrorMessage(response.error);
+        }
+      },
+    );
   }
 
   function joinGame() {
-    if (!gameCode.trim()) return;
+    const trimmedCode = gameCode.trim();
+    if (!trimmedCode) {
+      setErrorMessage("Enter a game id to join.");
+      return;
+    }
     window.localStorage.setItem("grapple.playerName", playerName);
-    router.push(`/game/${gameCode.trim()}`);
+    setErrorMessage("");
+    router.push(`/game/${trimmedCode}`);
   }
 
   return (
@@ -49,6 +65,7 @@ export default function Home() {
         <input value={gameCode} onChange={(e) => setGameCode(e.target.value)} placeholder="Enter game id" />
         <button onClick={joinGame}>Join</button>
       </div>
+      {errorMessage ? <p style={{ color: "crimson", marginTop: 12 }}>{errorMessage}</p> : null}
     </div>
   );
 }
