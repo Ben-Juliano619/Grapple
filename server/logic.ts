@@ -24,14 +24,31 @@ export type GameState = {
 
 export function createGameState(id: string): GameState {
   const state: GameState = {
-    id,  // ✅ use the id passed in
+    id,
     players: [],
     drawPile: [],
     discardPile: [],
     currentTurnIndex: 0,
     currentPosition: "NEUTRAL",
     phase: "LOBBY",
-    start() { /* ... */ },
+    start() {
+      const deck = shuffle(buildDeck());
+      state.drawPile = deck;
+      state.discardPile = [];
+      state.currentTurnIndex = 0;
+      state.currentPosition = "NEUTRAL";
+      state.previousPosition = undefined;
+      state.phase = "FIND_START_NEUTRAL";
+
+      for (const player of state.players) {
+        player.hand = [];
+        for (let i = 0; i < 5; i += 1) {
+          player.hand.push(drawOne(state));
+        }
+        player.score = 0;
+        player.penaltyPoints = 0;
+      }
+    },
   };
   return state;
 }
@@ -111,7 +128,9 @@ function isCardLegal(state: GameState, card: Card): { ok: true } | { ok: false; 
   // Position-matching play
   if (state.currentPosition === "NEUTRAL" && card.kind === "NEUTRAL") return { ok: true };
   if (state.currentPosition === "TOP" && card.kind === "TOP") return { ok: true };
-  if (state.currentPosition === "BOTTOM" && card.kind === "BOTTOM") return { ok: true };
+  if (state.currentPosition === "BOTTOM" && (card.kind === "BOTTOM" || card.kind === "TRIPOD" || card.kind === "SITOUT")) {
+    return { ok: true };
+  }
 
   // TODO: COUNTER legality (needs pendingAttack)
   if (card.kind === "COUNTER") return { ok: false, error: "Counter can only be played to defend a takedown (not implemented yet)" };
@@ -133,6 +152,9 @@ function applyCardEffects(state: GameState, card: Card) {
 
     case "BOTTOM":
       state.currentPosition = card.meta?.doesNotChangePosition ? state.currentPosition : "BOTTOM";
+      return;
+    case "TRIPOD":
+    case "SITOUT":
       return;
 
     case "BLOODTIME":
@@ -216,13 +238,20 @@ function buildDeck(): Card[] {
 
   return [
     mk("Neutral Stance", "NEUTRAL", "#000000"),
-    mk("Neutral Stance", "NEUTRAL", "#000000"),
+    mk("Shot Setup", "NEUTRAL", "#000000"),
+    mk("Hand Fight", "NEUTRAL", "#000000"),
     mk("Top Control", "TOP", "#1E90FF"),
+    mk("Half Nelson", "TOP", "#1E90FF"),
+    mk("Ride Legs", "TOP", "#1E90FF"),
     mk("Stand Up", "BOTTOM", "#00AA00"),
+    mk("Sit Out", "SITOUT", "#00AA00", { doesNotChangePosition: true }),
+    mk("Tripod", "TRIPOD", "#00AA00", { doesNotChangePosition: true }),
     mk("Blood Time", "BLOODTIME", "#FF0000"),
     mk("Penalty", "PENALTY", "#7CFC00"),
     mk("Out of Bounds", "OUT_OF_BOUNDS", "#808080"),
+    mk("Stalling", "STALLING", "#FFD700"),
+    mk("End of Period", "END_OF_PERIOD", "#A020F0"),
+    mk("Attempt Takedown", "ATTEMPT_TAKEDOWN", "#000000"),
     mk("Pin", "PIN", "#FFFFFF"),
-    // add many more...
   ];
 }
