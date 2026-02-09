@@ -1,0 +1,23 @@
+{
+  "scripts": {
+    "dev": "next dev",
+    "dev:server": "tsx server/index.ts",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\""
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "next": "^16.1.6",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.2.2",
+    "@types/react": "19.2.13",
+    "concurrently": "^9.2.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
