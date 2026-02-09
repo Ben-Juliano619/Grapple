@@ -13,19 +13,33 @@ const io = new Server(server, {
 
 type GameId = string;
 const games = new Map<GameId, ReturnType<typeof createGameState>>();
+const MAX_PLAYERS = 4;
 
 io.on("connection", (socket) => {
-  socket.on("game:create", () => {
+  socket.on("game:create", (_payload: unknown, callback?: (response: { ok: true; gameId: string } | { ok: false; error: string }) => void) => {
     const gameId = crypto.randomUUID();
-    const state = createGameState();
+    const state = createGameState(gameId);
     games.set(gameId, state);
     socket.join(gameId);
     socket.emit("game:state", state);
+    callback?.({ ok: true, gameId });
   });
 
-  socket.on("game:join", ({ gameId, playerName }: { gameId: string; playerName: string }) => {
+  socket.on(
+    "game:join",
+    (
+      { gameId, playerName }: { gameId: string; playerName: string },
+      callback?: (response: { ok: true; playerId: string; state: ReturnType<typeof createGameState> } | { ok: false; error: string }) => void,
+    ) => {
     const state = games.get(gameId);
-    if (!state) return socket.emit("game:error", "Game not found");
+    if (!state) {
+      callback?.({ ok: false, error: "Game not found" });
+      return socket.emit("game:error", "Game not found");
+    }
+    if (state.players.length >= MAX_PLAYERS) {
+      callback?.({ ok: false, error: "Game is full" });
+      return socket.emit("game:error", "Game is full");
+    }
 
     const playerId = crypto.randomUUID();
     state.players.push({
@@ -40,11 +54,13 @@ io.on("connection", (socket) => {
     socket.join(gameId);
 
     io.to(gameId).emit("game:state", state);
+    callback?.({ ok: true, playerId, state });
   });
 
   socket.on("game:start", ({ gameId }: { gameId: string }) => {
     const state = games.get(gameId);
     if (!state) return socket.emit("game:error", "Game not found");
+    if (state.players.length < 2) return socket.emit("game:error", "Need at least 2 players to start");
 
     // deal 5 to each player
     state.start();
