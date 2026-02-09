@@ -22,33 +22,20 @@ export type GameState = {
   start: () => void;
 };
 
-export function createGameState(): GameState {
+export function createGameState(id: string): GameState {
   const state: GameState = {
-    id: crypto.randomUUID(),
+    id,  // ✅ use the id passed in
     players: [],
     drawPile: [],
     discardPile: [],
     currentTurnIndex: 0,
     currentPosition: "NEUTRAL",
     phase: "LOBBY",
-    start() {
-      // TODO: buildDeck() based on your card list
-      this.drawPile = shuffle(buildDeck());
-      this.discardPile = [];
-      this.currentTurnIndex = 0;
-      this.currentPosition = "NEUTRAL";
-      this.phase = "FIND_START_NEUTRAL";
-
-      for (const p of this.players) {
-        p.hand = [];
-        for (let i = 0; i < 5; i++) p.hand.push(drawOne(this));
-        p.score = 0;
-        p.penaltyPoints = 0;
-      }
-    },
+    start() { /* ... */ },
   };
   return state;
 }
+
 
 type Action =
   | { type: "PLAY_CARD"; playerId: string; cardId: string }
