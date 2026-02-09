@@ -31,7 +31,7 @@ io.on("connection", (socket) => {
     const state = createGameState(gameId);
     games.set(gameId, state);
     socket.join(gameId);
-    socket.emit("game:state", state);
+    io.to(gameId).emit("game:state", state);
     callback?.({ ok: true, gameId });
   });
 

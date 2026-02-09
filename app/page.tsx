@@ -54,7 +54,7 @@ export default function Home() {
 
   return (
     <div style={{ padding: 24, fontFamily: "system-ui" }}>
-      <h1>Grapple Notes</h1>
+      <h1>Grapple</h1>
       <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
         <input
           value={playerName}

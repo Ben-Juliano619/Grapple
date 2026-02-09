@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { io } from "socket.io-client";
 import type { Card, Position } from "../../../shared/types";
+import { getSocket } from "../../lib/socket";
 
 type PlayerState = {
   id: string;
@@ -51,32 +52,41 @@ export default function GamePage() {
   const params = useParams();
   const gameId = params.id as string;
 
-  const socket = useMemo(() => io("http://localhost:3001", { transports: ["websocket"] }), []);
+  const socket = useMemo(() => getSocket(), []);
   const [state, setState] = useState<GameState | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const playerName = window.localStorage.getItem("grapple.playerName") ?? "Player";
-    socket.on("game:state", setState);
-    socket.on("game:error", (e) => setError(String(e)));
 
-    socket.emit("game:join", { gameId, playerName }, (response: { ok: boolean; playerId?: string; error?: string }) => {
-      if (!response.ok) {
-        setError(response.error ?? "Unable to join");
-        return;
-      }
-      if (response.playerId) {
-        setPlayerId(response.playerId);
-      }
-    });
+    const onState = (s: GameState) => setState(s);
+    const onError = (e: any) => setError(String(e));
+
+    socket.on("game:state", onState);
+    socket.on("game:error", onError);
+
+    const join = () => {
+        socket.emit("game:join", { gameId, playerName }, (response: any) => {
+        if (!response.ok) {
+            setError(response.error ?? "Unable to join");
+            return;
+        }
+        if (response.playerId) setPlayerId(response.playerId);
+        });
+    };
+
+    // ✅ join now if already connected, and also on every reconnect
+    if (socket.connected) join();
+    socket.on("connect", join);
 
     return () => {
-      socket.off("game:state", setState);
-      socket.off("game:error");
-      socket.disconnect();
+        socket.off("game:state", onState);
+        socket.off("game:error", onError);
+        socket.off("connect", join);
     };
-  }, [socket, gameId]);
+    }, [socket, gameId]);
+
 
   const me = state?.players.find((player) => player.id === playerId) ?? null;
   const opponents = state?.players.filter((player) => player.id !== playerId) ?? [];
