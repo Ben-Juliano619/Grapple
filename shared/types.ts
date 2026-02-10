@@ -22,11 +22,12 @@ export type Card = {
   name: string;        // e.g. "Single Leg Takedown"
   kind: CardKind;
   color: string;       // for UI
+  image: string;       // path to card image
   points?: number;     // if you want scoring cards
   meta?: {
     // used for “After a takedown, bottom needs appropriate move to escape”
     requiresEscapeMove?: string[]; // list of move tags that can respond
     doesNotChangePosition?: boolean; // for tripod/sitout
+    endsGame?: boolean; // for pin-style finishes
   };
 };
-

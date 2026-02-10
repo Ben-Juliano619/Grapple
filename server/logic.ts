@@ -1,5 +1,6 @@
 // server/logic.ts
 import { Card, Position } from "../shared/types";
+import { cardDefinitions } from "../shared/cards";
 
 type Player = {
   id: string;
@@ -89,8 +90,8 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
   currentPlayer.hand.splice(cardIndex, 1);
   state.discardPile.push(card);
 
-  // win condition: pin
-  if (card.kind === "PIN") {
+  // win condition: pin-style finish
+  if (card.meta?.endsGame) {
     state.phase = "ENDED";
     return { ok: true };
   }
@@ -126,7 +127,7 @@ function isCardLegal(state: GameState, card: Card): { ok: true } | { ok: false; 
   if (anytime.has(card.kind)) return { ok: true };
 
   // Position-matching play
-  if (state.currentPosition === "NEUTRAL" && card.kind === "NEUTRAL") return { ok: true };
+  if (state.currentPosition === "NEUTRAL" && (card.kind === "NEUTRAL" || card.kind === "ATTEMPT_TAKEDOWN")) return { ok: true };
   if (state.currentPosition === "TOP" && card.kind === "TOP") return { ok: true };
   if (state.currentPosition === "BOTTOM" && (card.kind === "BOTTOM" || card.kind === "TRIPOD" || card.kind === "SITOUT")) {
     return { ok: true };
@@ -226,32 +227,19 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-// TODO: replace with your real deck list
 function buildDeck(): Card[] {
-  const mk = (name: string, kind: any, color: string, meta?: any): Card => ({
-    id: crypto.randomUUID(),
-    name,
-    kind,
-    color,
-    meta,
-  });
-
-  return [
-    mk("Neutral Stance", "NEUTRAL", "#000000"),
-    mk("Shot Setup", "NEUTRAL", "#000000"),
-    mk("Hand Fight", "NEUTRAL", "#000000"),
-    mk("Top Control", "TOP", "#1E90FF"),
-    mk("Half Nelson", "TOP", "#1E90FF"),
-    mk("Ride Legs", "TOP", "#1E90FF"),
-    mk("Stand Up", "BOTTOM", "#00AA00"),
-    mk("Sit Out", "SITOUT", "#00AA00", { doesNotChangePosition: true }),
-    mk("Tripod", "TRIPOD", "#00AA00", { doesNotChangePosition: true }),
-    mk("Blood Time", "BLOODTIME", "#FF0000"),
-    mk("Penalty", "PENALTY", "#7CFC00"),
-    mk("Out of Bounds", "OUT_OF_BOUNDS", "#808080"),
-    mk("Stalling", "STALLING", "#FFD700"),
-    mk("End of Period", "END_OF_PERIOD", "#A020F0"),
-    mk("Attempt Takedown", "ATTEMPT_TAKEDOWN", "#000000"),
-    mk("Pin", "PIN", "#FFFFFF"),
-  ];
+  const deck: Card[] = [];
+  for (const def of cardDefinitions) {
+    for (let i = 0; i < def.count; i += 1) {
+      deck.push({
+        id: crypto.randomUUID(),
+        name: def.name,
+        kind: def.kind,
+        color: def.color,
+        image: def.image,
+        meta: def.meta,
+      });
+    }
+  }
+  return deck;
 }

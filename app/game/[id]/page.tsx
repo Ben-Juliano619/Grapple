@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { io } from "socket.io-client";
 import type { Card, Position } from "../../../shared/types";
 import { getSocket } from "../../lib/socket";
+import { cardBackImage, rulesCards } from "../../../shared/cards";
 
 type PlayerState = {
   id: string;
@@ -56,6 +56,7 @@ export default function GamePage() {
   const [state, setState] = useState<GameState | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   useEffect(() => {
     const playerName = window.localStorage.getItem("grapple.playerName") ?? "Player";
@@ -96,7 +97,7 @@ export default function GamePage() {
 
   return (
     <div style={{ padding: 24, fontFamily: "system-ui", display: "grid", gap: 20 }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
           <h2 style={{ margin: 0 }}>Grapple Notes</h2>
           <p style={{ margin: "4px 0 0" }}>Game ID: {gameId}</p>
@@ -106,6 +107,19 @@ export default function GamePage() {
           <div>Position: {state ? positionLabels[state.currentPosition] : "—"}</div>
           <div>{currentPlayer ? `Turn: ${currentPlayer.name}` : "Waiting for players..."}</div>
         </div>
+        <button
+          type="button"
+          onClick={() => setRulesOpen(true)}
+          style={{
+            padding: "8px 14px",
+            borderRadius: 8,
+            border: "1px solid #111",
+            background: "#fff",
+            fontWeight: 600,
+          }}
+        >
+          Rules
+        </button>
       </header>
 
       {error ? <div style={{ background: "#fee", border: "1px solid #f5c2c2", padding: 12 }}>{error}</div> : null}
@@ -156,36 +170,59 @@ export default function GamePage() {
             onClick={() => socket.emit("turn:draw", { gameId })}
             disabled={!state || !isMyTurn || state.phase === "LOBBY"}
             style={{
-              width: 140,
-              height: 200,
+              width: 160,
+              height: 230,
               borderRadius: 12,
               background: "#1f2937",
               color: "#fff",
               border: "2px solid #111827",
               fontWeight: 600,
+              padding: 0,
+              overflow: "hidden",
+              position: "relative",
             }}
           >
-            Draw Pile
-            <div style={{ fontSize: 12, marginTop: 6 }}>{state ? state.drawPile.length : 0} cards</div>
+            <img
+              src={cardBackImage}
+              alt="Draw pile"
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                bottom: 8,
+                right: 10,
+                background: "rgba(0,0,0,0.65)",
+                color: "#fff",
+                padding: "2px 6px",
+                borderRadius: 6,
+                fontSize: 12,
+              }}
+            >
+              {state ? state.drawPile.length : 0}
+            </div>
           </button>
           <div style={{ textAlign: "center" }}>
             <div style={{ marginBottom: 6, fontWeight: 600 }}>Discard</div>
             <div
               style={{
-                width: 140,
-                height: 200,
+                width: 160,
+                height: 230,
                 borderRadius: 12,
-                background: topCard ? topCard.color : "#eee",
-                color: topCard && topCard.color === "#000000" ? "#fff" : "#111",
                 border: "2px solid #ccc",
-                display: "grid",
-                placeItems: "center",
-                padding: 12,
-                textAlign: "center",
-                fontWeight: 600,
+                overflow: "hidden",
+                background: "#eee",
               }}
             >
-              {topCard ? topCard.name : "No card"}
+              {topCard ? (
+                <img
+                  src={topCard.image}
+                  alt={topCard.name}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                />
+              ) : (
+                <div style={{ display: "grid", placeItems: "center", height: "100%", fontWeight: 600 }}>No card</div>
+              )}
             </div>
           </div>
         </div>
@@ -218,21 +255,21 @@ export default function GamePage() {
                 onClick={() => socket.emit("turn:playCard", { gameId, cardId: card.id })}
                 disabled={!isMyTurn || state?.phase === "LOBBY"}
                 style={{
-                  width: 140,
-                  height: 200,
+                  width: 160,
+                  height: 230,
                   borderRadius: 12,
                   background: cardStyles[card.kind] ?? card.color,
                   color: card.color === "#000000" ? "#fff" : "#111",
                   border: "2px solid #111",
-                  padding: 10,
-                  textAlign: "left",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
+                  padding: 0,
+                  overflow: "hidden",
                 }}
               >
-                <div style={{ fontSize: 12, textTransform: "uppercase" }}>{card.kind.replaceAll("_", " ")}</div>
-                <div style={{ fontWeight: 700 }}>{card.name}</div>
+                <img
+                  src={card.image}
+                  alt={card.name}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                />
               </button>
             ))}
           </div>
@@ -240,6 +277,63 @@ export default function GamePage() {
           <div>Joining game…</div>
         )}
       </section>
+
+      {rulesOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "grid",
+            placeItems: "center",
+            padding: 24,
+            zIndex: 20,
+          }}
+          onClick={() => setRulesOpen(false)}
+        >
+          <div
+            style={{
+              background: "#fff",
+              padding: 20,
+              borderRadius: 16,
+              maxWidth: 900,
+              width: "100%",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.35)",
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <h3 style={{ margin: 0 }}>Rules Cards</h3>
+              <button
+                type="button"
+                onClick={() => setRulesOpen(false)}
+                style={{
+                  border: "1px solid #111",
+                  borderRadius: 8,
+                  padding: "6px 12px",
+                  background: "#111",
+                  color: "#fff",
+                  fontWeight: 600,
+                }}
+              >
+                Close
+              </button>
+            </div>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center" }}>
+              {rulesCards.map((src, index) => (
+                <img
+                  key={src}
+                  src={src}
+                  alt={`Rules card ${index + 1}`}
+                  style={{ width: 220, height: 320, objectFit: "cover", borderRadius: 12, border: "2px solid #111" }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
