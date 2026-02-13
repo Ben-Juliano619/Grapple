@@ -28,6 +28,11 @@ io.on("connection", (socket) => {
     }
 
     const gameId = requestedId || crypto.randomUUID();
+    if (games.has(gameId)) {
+      callback?.({ ok: false, error: "Game ID already in use" });
+      return socket.emit("game:error", "Game ID already in use");
+    }
+
     const state = createGameState(gameId);
     games.set(gameId, state);
     socket.join(gameId);
@@ -41,31 +46,44 @@ io.on("connection", (socket) => {
       { gameId, playerName }: { gameId: string; playerName: string },
       callback?: (response: { ok: true; playerId: string; state: ReturnType<typeof createGameState> } | { ok: false; error: string }) => void,
     ) => {
-    const state = games.get(gameId);
-    if (!state) {
-      callback?.({ ok: false, error: "Game not found" });
-      return socket.emit("game:error", "Game not found");
-    }
-    if (state.players.length >= MAX_PLAYERS) {
-      callback?.({ ok: false, error: "Game is full" });
-      return socket.emit("game:error", "Game is full");
-    }
+      const state = games.get(gameId);
+      if (!state) {
+        callback?.({ ok: false, error: "Game not found" });
+        return socket.emit("game:error", "Game not found");
+      }
+      if (state.players.length >= MAX_PLAYERS) {
+        callback?.({ ok: false, error: "Game is full" });
+        return socket.emit("game:error", "Game is full");
+      }
 
-    const playerId = crypto.randomUUID();
-    state.players.push({
-      id: playerId,
-      name: playerName,
-      hand: [],
-      score: 0,
-      penaltyPoints: 0,
+      const cleanedName = playerName.trim();
+      if (!cleanedName) {
+        callback?.({ ok: false, error: "Player name cannot be blank" });
+        return socket.emit("game:error", "Player name cannot be blank");
+      }
+
+      const normalizedName = cleanedName.toLocaleLowerCase();
+      const duplicateName = state.players.some((player) => player.name.trim().toLocaleLowerCase() === normalizedName);
+      if (duplicateName) {
+        callback?.({ ok: false, error: "Player name already in use for this game" });
+        return socket.emit("game:error", "Player name already in use for this game");
+      }
+
+      const playerId = crypto.randomUUID();
+      state.players.push({
+        id: playerId,
+        name: cleanedName,
+        hand: [],
+        score: 0,
+        penaltyPoints: 0,
+      });
+
+      socket.data.playerId = playerId;
+      socket.join(gameId);
+
+      io.to(gameId).emit("game:state", state);
+      callback?.({ ok: true, playerId, state });
     });
-
-    socket.data.playerId = playerId;
-    socket.join(gameId);
-
-    io.to(gameId).emit("game:state", state);
-    callback?.({ ok: true, playerId, state });
-  });
 
   socket.on("game:start", ({ gameId }: { gameId: string }) => {
     const state = games.get(gameId);
