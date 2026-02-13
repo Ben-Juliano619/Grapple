@@ -84,9 +84,18 @@ export default function GamePage() {
   const currentPlayer = state?.players[state.currentTurnIndex];
   const isMyTurn = Boolean(currentPlayer && currentPlayer.id === playerId);
   const topCard = state?.discardPile[state.discardPile.length - 1] ?? null;
+  const cardWidth = "clamp(124px, 12.5vw, 190px)";
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", display: "grid", gap: 20 }}>
+    <div
+      style={{
+        padding: "clamp(12px, 2.4vw, 28px)",
+        fontFamily: "system-ui",
+        display: "grid",
+        gap: 20,
+        minHeight: "100vh",
+      }}
+    >
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
           <h2 style={{ margin: 0 }}>Grapple Notes</h2>
@@ -202,12 +211,21 @@ export default function GamePage() {
       </section>
 
       <section style={{ display: "grid", placeItems: "center", gap: 12 }}>
-        <div style={{ display: "flex", gap: 32, alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "clamp(16px, 2.8vw, 40px)",
+            alignItems: "center",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            width: "100%",
+          }}
+        >
           <button
             onClick={() => socket.emit("turn:draw", { gameId })}
             disabled={!state || !isMyTurn || state.phase === "LOBBY"}
             style={{
-              width: 140,
+              width: cardWidth,
               borderRadius: 12,
               background: "#fff",
               border: "2px solid #111827",
@@ -216,17 +234,17 @@ export default function GamePage() {
               padding: 8,
             }}
           >
-            <Image src={BACK_OF_CARD} alt="Draw pile" width={120} height={172} style={{ width: "100%", height: "auto", borderRadius: 8 }} />
+            <Image src={BACK_OF_CARD} alt="Draw pile" width={190} height={272} style={{ width: "100%", height: "auto", borderRadius: 8 }} />
             <div style={{ fontSize: 12, marginTop: 6 }}>{state ? state.drawPile.length : 0} cards</div>
           </button>
           <div style={{ textAlign: "center" }}>
             <div style={{ marginBottom: 6, fontWeight: 600 }}>Discard</div>
-            <div style={{ width: 140 }}>
+            <div style={{ width: cardWidth }}>
               <Image
                 src={getCardImage(topCard)}
                 alt={topCard ? topCard.name : "No card"}
-                width={140}
-                height={200}
+                width={190}
+                height={272}
                 style={{ width: "100%", height: "auto", borderRadius: 12, border: "2px solid #ccc" }}
               />
             </div>
@@ -254,14 +272,15 @@ export default function GamePage() {
       <section style={{ display: "grid", gap: 12 }}>
         <h3 style={{ margin: 0 }}>Your Hand {me ? `(${me.hand.length})` : ""}</h3>
         {me ? (
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(clamp(124px, 12.5vw, 190px), 1fr))", width: "100%" }}>
             {me.hand.map((card) => (
               <button
                 key={card.id}
                 onClick={() => socket.emit("turn:playCard", { gameId, cardId: card.id })}
                 disabled={!isMyTurn || state?.phase === "LOBBY"}
                 style={{
-                  width: 140,
+                  width: "100%",
+                  maxWidth: cardWidth,
                   borderRadius: 12,
                   border: "2px solid #111",
                   background: "#fff",
@@ -272,8 +291,8 @@ export default function GamePage() {
                 <Image
                   src={getCardImage(card)}
                   alt={card.name}
-                  width={140}
-                  height={200}
+                  width={190}
+                  height={272}
                   style={{ width: "100%", height: "auto", display: "block" }}
                 />
               </button>
