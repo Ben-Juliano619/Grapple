@@ -22,6 +22,7 @@ export type Card = {
   name: string;        // e.g. "Single Leg Takedown"
   kind: CardKind;
   color: string;       // for UI
+  imageFile?: string;  // image file in /public/img/cards
   points?: number;     // if you want scoring cards
   meta?: {
     // used for “After a takedown, bottom needs appropriate move to escape”
@@ -29,4 +30,3 @@ export type Card = {
     doesNotChangePosition?: boolean; // for tripod/sitout
   };
 };
-

@@ -85,9 +85,12 @@ io.on("connection", (socket) => {
     if (!isPlayerInGame(state, playerId)) return socket.emit("game:error", "Not in this game");
 
     const result = applyAction(state, { type: "PLAY_CARD", playerId, cardId });
-    if (!result.ok) return socket.emit("game:error", result.error);
+    if (result.ok) {
+      io.to(gameId).emit("game:state", state);
+      return;
+    }
 
-    io.to(gameId).emit("game:state", state);
+    return socket.emit("game:error", "error" in result ? result.error : "Unknown error");
   });
 
   socket.on("turn:draw", ({ gameId }: { gameId: string }) => {
@@ -96,9 +99,12 @@ io.on("connection", (socket) => {
 
     const playerId = socket.data.playerId as string;
     const result = applyAction(state, { type: "DRAW", playerId });
-    if (!result.ok) return socket.emit("game:error", result.error);
+    if (result.ok) {
+      io.to(gameId).emit("game:state", state);
+      return;
+    }
 
-    io.to(gameId).emit("game:state", state);
+    return socket.emit("game:error", "error" in result ? result.error : "Unknown error");
   });
 });
 
