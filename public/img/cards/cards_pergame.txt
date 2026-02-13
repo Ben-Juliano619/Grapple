@@ -1,0 +1,33 @@
+2 blood_time.png
+1 bottom_elbow_roll_chest_to_chest_pin.png
+2 bottom_granby_roll.png
+2 bottom_inside_switch.png
+1 bottom_outside_switch.png
+2 bottom_sit_out_no_change_of_position.png
+1 bottom_sit_out_tripod_duckout.png
+1 bottom_sit_out_tripod_peterson.png
+3 bottom_stand_up.png
+2 counter_sprawl.png
+2 counter_whizzer.png
+2 end_of_period.png
+1 neutral_ankle_pick_to_back.png
+2 neutral_attempted_takedown.png
+3 neutral_double_leg_takedown.png
+1 neutral_duck_under.png
+1 neutral_firemans_carry_to_opponents_back.png
+1 neutral_head_lock_to_pin.pngc
+1 neutral_hip_toss.png
+3 neutral_single_leg_takedown.png
+2 out_of_bounds.png
+2 penalty.png
+2 stalling.png
+2 top_double_leg_takedown.png
+1 top_far_arm_chop.png
+1 top_far_side_craddle.png
+2 top_inside_wrist_half_to_ping.png
+1 top_near_side_craddle.png
+1 top_pump_handle_tilt.png
+1 top_spiral_ride_to_opponents_back.png
+1 top_turk_craddle_to_pin.png
+
+50 total cards per game 
