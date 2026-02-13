@@ -20,7 +20,8 @@ export type GameState = {
   currentPosition: Position;
   phase: "LOBBY" | "FIND_START_NEUTRAL" | "PLAY" | "ENDED";
   previousPosition?: Position; // for out of bounds
-  // optional: pendingAttack etc later
+  // neutral takedown can be countered by the next player
+  canCounterTakedown: boolean;
   start: () => void;
 };
 
@@ -161,6 +162,7 @@ export function createGameState(id: string): GameState {
     currentTurnIndex: 0,
     currentPosition: "NEUTRAL",
     phase: "LOBBY",
+    canCounterTakedown: false,
     start() {
       const deck = shuffle(buildDeck());
       state.drawPile = deck;
@@ -169,6 +171,7 @@ export function createGameState(id: string): GameState {
       state.currentPosition = "NEUTRAL";
       state.previousPosition = undefined;
       state.phase = "FIND_START_NEUTRAL";
+      state.canCounterTakedown = false;
 
       for (const player of state.players) {
         player.hand = [];
@@ -257,18 +260,33 @@ function isCardLegal(state: GameState, card: Card): { ok: true } | { ok: false; 
     return { ok: true };
   }
 
-  // TODO: COUNTER legality (needs pendingAttack)
-  if (card.kind === "COUNTER") return { ok: false, error: "Counter can only be played to defend a takedown (not implemented yet)" };
+  if (card.kind === "COUNTER") {
+    if (state.canCounterTakedown && state.currentPosition === "BOTTOM") return { ok: true };
+    return { ok: false, error: "Counter can only be played right after a successful takedown" };
+  }
 
   return { ok: false, error: `Card not playable in ${state.currentPosition} position` };
 }
 
 function applyCardEffects(state: GameState, card: Card) {
+  state.canCounterTakedown = false;
+
   switch (card.kind) {
-    case "NEUTRAL":
+    case "NEUTRAL": {
+      const neutralWasTakedown = isNeutralTakedown(card);
+      state.currentPosition = neutralWasTakedown ? "BOTTOM" : "NEUTRAL";
+      state.canCounterTakedown = neutralWasTakedown;
+      state.phase = "PLAY";
+      return;
+    }
+
     case "ATTEMPT_TAKEDOWN":
       state.currentPosition = "NEUTRAL";
       state.phase = "PLAY";
+      return;
+
+    case "COUNTER":
+      state.currentPosition = "NEUTRAL";
       return;
 
     case "TOP":
@@ -316,6 +334,14 @@ function applyCardEffects(state: GameState, card: Card) {
     default:
       return;
   }
+}
+
+function isNeutralTakedown(card: Card): boolean {
+  if (card.kind !== "NEUTRAL") return false;
+
+  const imageFile = card.imageFile?.toLowerCase() ?? "";
+  const name = card.name.toLowerCase();
+  return imageFile.includes("takedown") || name.includes("takedown");
 }
 
 function endTurn(state: GameState) {
