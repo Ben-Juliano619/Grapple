@@ -43,13 +43,31 @@ export default function Home() {
 
   function joinGame() {
     const trimmedCode = gameCode.trim();
+    const trimmedPlayerName = playerName.trim();
     if (!trimmedCode) {
       setErrorMessage("Enter a game id to join.");
       return;
     }
-    window.localStorage.setItem("grapple.playerName", playerName);
+
+    if (!trimmedPlayerName) {
+      setErrorMessage("Player name cannot be blank");
+      return;
+    }
+
     setErrorMessage("");
-    router.push(`/game/${trimmedCode}`);
+    socket.emit(
+      "game:validateJoin",
+      { gameId: trimmedCode, playerName: trimmedPlayerName },
+      (response: { ok: boolean; error?: string }) => {
+        if (!response.ok) {
+          setErrorMessage(response.error ?? "Unable to join game");
+          return;
+        }
+
+        window.localStorage.setItem("grapple.playerName", trimmedPlayerName);
+        router.push(`/game/${trimmedCode}`);
+      },
+    );
   }
 
   return (
