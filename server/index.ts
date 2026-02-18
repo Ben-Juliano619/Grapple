@@ -13,7 +13,20 @@ const io = new Server(server, {
 
 type GameId = string;
 const games = new Map<GameId, ReturnType<typeof createGameState>>();
+const gameSessions = new Map<GameId, Map<string, string>>();
 const MAX_PLAYERS = 4;
+
+function generateSixDigitGameId() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+function createUniqueGameId() {
+  let nextId = generateSixDigitGameId();
+  while (games.has(nextId)) {
+    nextId = generateSixDigitGameId();
+  }
+  return nextId;
+}
 
 function getJoinError(state: ReturnType<typeof createGameState>, playerName: string): string | null {
   if (state.players.length >= MAX_PLAYERS) return "Game is full";
@@ -28,26 +41,19 @@ function getJoinError(state: ReturnType<typeof createGameState>, playerName: str
   return null;
 }
 
-io.on("connection", (socket) => {
-  socket.on("game:create", (payload: { gameId?: string } | null, callback?: (response: { ok: true; gameId: string } | { ok: false; error: string }) => void) => {
-    const requestedId = typeof payload?.gameId === "string" ? payload.gameId.trim() : "";
-    if (requestedId && games.has(requestedId)) {
-      callback?.({ ok: false, error: "Game ID already in use" });
-      return socket.emit("game:error", "Game ID already in use");
-    }
-    if (payload?.gameId !== undefined && !requestedId) {
-      callback?.({ ok: false, error: "Game ID cannot be blank" });
-      return socket.emit("game:error", "Game ID cannot be blank");
-    }
+function getResumePlayerId(gameId: string, sessionId: string) {
+  const gameSessionMap = gameSessions.get(gameId);
+  if (!gameSessionMap) return null;
+  return gameSessionMap.get(sessionId) ?? null;
+}
 
-    const gameId = requestedId || crypto.randomUUID();
-    if (games.has(gameId)) {
-      callback?.({ ok: false, error: "Game ID already in use" });
-      return socket.emit("game:error", "Game ID already in use");
-    }
+io.on("connection", (socket) => {
+  socket.on("game:create", (_payload: unknown, callback?: (response: { ok: true; gameId: string } | { ok: false; error: string }) => void) => {
+    const gameId = createUniqueGameId();
 
     const state = createGameState(gameId);
     games.set(gameId, state);
+    gameSessions.set(gameId, new Map());
     socket.join(gameId);
     io.to(gameId).emit("game:state", state);
     callback?.({ ok: true, gameId });
@@ -56,12 +62,17 @@ io.on("connection", (socket) => {
   socket.on(
     "game:validateJoin",
     (
-      { gameId, playerName }: { gameId: string; playerName: string },
+      { gameId, playerName, sessionId }: { gameId: string; playerName: string; sessionId?: string },
       callback?: (response: { ok: true } | { ok: false; error: string }) => void,
     ) => {
       const state = games.get(gameId);
       if (!state) {
         callback?.({ ok: false, error: "Game not found" });
+        return;
+      }
+
+      if (sessionId && getResumePlayerId(gameId, sessionId)) {
+        callback?.({ ok: true });
         return;
       }
 
@@ -78,13 +89,24 @@ io.on("connection", (socket) => {
   socket.on(
     "game:join",
     (
-      { gameId, playerName }: { gameId: string; playerName: string },
+      { gameId, playerName, sessionId }: { gameId: string; playerName: string; sessionId?: string },
       callback?: (response: { ok: true; playerId: string; state: ReturnType<typeof createGameState> } | { ok: false; error: string }) => void,
     ) => {
       const state = games.get(gameId);
       if (!state) {
         callback?.({ ok: false, error: "Game not found" });
         return socket.emit("game:error", "Game not found");
+      }
+
+      if (sessionId) {
+        const existingPlayerId = getResumePlayerId(gameId, sessionId);
+        if (existingPlayerId && isPlayerInGame(state, existingPlayerId)) {
+          socket.data.playerId = existingPlayerId;
+          socket.join(gameId);
+          io.to(gameId).emit("game:state", state);
+          callback?.({ ok: true, playerId: existingPlayerId, state });
+          return;
+        }
       }
 
       const joinError = getJoinError(state, playerName);
@@ -103,6 +125,11 @@ io.on("connection", (socket) => {
       });
 
       socket.data.playerId = playerId;
+      if (sessionId) {
+        const gameSessionMap = gameSessions.get(gameId) ?? new Map<string, string>();
+        gameSessionMap.set(sessionId, playerId);
+        gameSessions.set(gameId, gameSessionMap);
+      }
       socket.join(gameId);
 
       io.to(gameId).emit("game:state", state);

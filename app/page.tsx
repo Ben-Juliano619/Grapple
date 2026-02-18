@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { io } from "socket.io-client";
+import { getOrCreateSessionId } from "./lib/session";
 
 export default function Home() {
   const router = useRouter();
@@ -17,6 +18,7 @@ export default function Home() {
     if (storedName) {
       setPlayerName(storedName);
     }
+    getOrCreateSessionId();
     return () => {
       socket.disconnect();
     };
@@ -24,11 +26,10 @@ export default function Home() {
 
   function createGame() {
     window.localStorage.setItem("grapple.playerName", playerName);
-    const requestedId = gameCode.trim();
     setErrorMessage("");
     socket.emit(
       "game:create",
-      requestedId ? { gameId: requestedId } : null,
+      null,
       (response: { ok: boolean; gameId?: string; error?: string }) => {
         if (response.ok && response.gameId) {
           router.push(`/game/${response.gameId}`);
@@ -55,9 +56,10 @@ export default function Home() {
     }
 
     setErrorMessage("");
+    const sessionId = getOrCreateSessionId();
     socket.emit(
       "game:validateJoin",
-      { gameId: trimmedCode, playerName: trimmedPlayerName },
+      { gameId: trimmedCode, playerName: trimmedPlayerName, sessionId },
       (response: { ok: boolean; error?: string }) => {
         if (!response.ok) {
           setErrorMessage(response.error ?? "Unable to join game");
@@ -80,7 +82,7 @@ export default function Home() {
           placeholder="Player name"
         />
         <button onClick={createGame}>Create Game</button>
-        <input value={gameCode} onChange={(e) => setGameCode(e.target.value)} placeholder="Enter game id" />
+        <input value={gameCode} onChange={(e) => setGameCode(e.target.value)} placeholder="Enter 6-digit game id" />
         <button onClick={joinGame}>Join</button>
       </div>
       {errorMessage ? <p style={{ color: "crimson", marginTop: 12 }}>{errorMessage}</p> : null}

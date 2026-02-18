@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import type { Card, Position } from "../../../shared/types";
 import { getSocket } from "../../lib/socket";
+import { getOrCreateSessionId } from "../../lib/session";
 
 type PlayerState = {
   id: string;
@@ -52,6 +53,7 @@ export default function GamePage() {
 
   useEffect(() => {
     const playerName = window.localStorage.getItem("grapple.playerName") ?? "Player";
+    const sessionId = getOrCreateSessionId();
 
     const onState = (s: GameState) => setState(s);
     const onError = (e: unknown) => setError(String(e));
@@ -60,7 +62,7 @@ export default function GamePage() {
     socket.on("game:error", onError);
 
     const join = () => {
-      socket.emit("game:join", { gameId, playerName }, (response: { ok: boolean; error?: string; playerId?: string }) => {
+      socket.emit("game:join", { gameId, playerName, sessionId }, (response: { ok: boolean; error?: string; playerId?: string }) => {
         if (!response.ok) {
           setError(response.error ?? "Unable to join");
           return;
