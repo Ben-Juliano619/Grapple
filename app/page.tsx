@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { io } from "socket.io-client";
@@ -106,9 +107,14 @@ export default function Home() {
         }}
       >
         <div>
-          <h1 style={{ margin: 0, fontSize: "clamp(2rem, 6vw, 3.4rem)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-            Grapple
-          </h1>
+          <Image
+            src="/img/logos/black_text_logo.jpeg"
+            alt="Grapple logo"
+            width={640}
+            height={180}
+            style={{ width: "min(100%, 440px)", height: "auto", margin: "0 auto" }}
+            priority
+          />
           <p style={{ margin: "8px 0 0", opacity: 0.9 }}>Deal. Wrestle. Outsmart. Win the mat.</p>
         </div>
 

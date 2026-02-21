@@ -34,6 +34,7 @@ const positionLabels: Record<Position, string> = {
 
 const BACK_OF_CARD = "/img/cards/back_of_card.png";
 const RULES_CARDS = ["/img/cards/rules1.png", "/img/cards/rules2.png", "/img/cards/rules3.png"];
+const BLUE_LOGO = "/img/logos/blue_logo.jpeg";
 
 function getCardImage(card: Card | null): string {
   if (!card?.imageFile) return BACK_OF_CARD;
@@ -96,13 +97,15 @@ export default function GamePage() {
         display: "grid",
         gap: 20,
         minHeight: "100vh",
+        position: "relative",
+        overflow: "hidden",
         background:
           "radial-gradient(circle at center, rgba(196, 38, 38, 0.5) 0%, rgba(196, 38, 38, 0.5) 18%, transparent 19%, transparent 34%, rgba(18, 73, 148, 0.72) 35%, rgba(18, 73, 148, 0.72) 47%, transparent 48%), linear-gradient(180deg, #2d5c96 0%, #1f4170 100%)",
         backgroundAttachment: "fixed",
         color: "#f9fbff",
       }}
     >
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, position: "relative", zIndex: 1 }}>
         <div>
           <h2 style={{ margin: 0 }}>Grapple Notes</h2>
           <p style={{ margin: "4px 0 0" }}>Game ID: {gameId}</p>
@@ -137,6 +140,27 @@ export default function GamePage() {
         </div>
       </header>
 
+      <Image
+        src={BLUE_LOGO}
+        alt="Blue Grapple mat background logo"
+        width={1200}
+        height={560}
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          width: "clamp(560px, 86vw, 1200px)",
+          height: "auto",
+          opacity: 0.14,
+          transform: "translate(-50%, -50%)",
+          filter: "blur(0.3px)",
+          pointerEvents: "none",
+          zIndex: 0,
+        }}
+        priority
+      />
+
+      <div style={{ position: "relative", zIndex: 1, display: "grid", gap: 20 }}>
       {showRules ? (
         <section
           style={{
@@ -308,6 +332,7 @@ export default function GamePage() {
           <div>Joining game…</div>
         )}
       </section>
+      </div>
     </div>
   );
 }
