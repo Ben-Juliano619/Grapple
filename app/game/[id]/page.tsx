@@ -96,6 +96,10 @@ export default function GamePage() {
         display: "grid",
         gap: 20,
         minHeight: "100vh",
+        background:
+          "radial-gradient(circle at center, rgba(196, 38, 38, 0.5) 0%, rgba(196, 38, 38, 0.5) 18%, transparent 19%, transparent 34%, rgba(18, 73, 148, 0.72) 35%, rgba(18, 73, 148, 0.72) 47%, transparent 48%), linear-gradient(180deg, #2d5c96 0%, #1f4170 100%)",
+        backgroundAttachment: "fixed",
+        color: "#f9fbff",
       }}
     >
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
@@ -136,10 +140,10 @@ export default function GamePage() {
       {showRules ? (
         <section
           style={{
-            border: "1px solid #ddd",
+            border: "1px solid rgba(255,255,255,0.35)",
             borderRadius: 12,
             padding: 16,
-            background: "#fafafa",
+            background: "rgba(7, 24, 49, 0.7)",
             display: "grid",
             gap: 12,
             justifyItems: "center",
@@ -172,7 +176,7 @@ export default function GamePage() {
         </section>
       ) : null}
 
-      {error ? <div style={{ background: "#fee", border: "1px solid #f5c2c2", padding: 12 }}>{error}</div> : null}
+      {error ? <div style={{ background: "#fee", border: "1px solid #f5c2c2", padding: 12, color: "#5f0000" }}>{error}</div> : null}
 
       <section style={{ display: "grid", gap: 12 }}>
         <h3 style={{ margin: 0 }}>Opponents</h3>
@@ -184,11 +188,11 @@ export default function GamePage() {
               <div
                 key={player.id}
                 style={{
-                  border: "1px solid #ddd",
+                  border: "1px solid rgba(255,255,255,0.35)",
                   borderRadius: 12,
                   padding: 12,
                   minWidth: 180,
-                  background: "#fafafa",
+                  background: "rgba(7, 24, 49, 0.65)",
                 }}
               >
                 <div style={{ fontWeight: 600 }}>{player.name}</div>
