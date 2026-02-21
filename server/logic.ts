@@ -274,7 +274,9 @@ function applyCardEffects(state: GameState, card: Card) {
   switch (card.kind) {
     case "NEUTRAL": {
       const neutralWasTakedown = isNeutralTakedown(card);
-      state.currentPosition = neutralWasTakedown ? "BOTTOM" : "NEUTRAL";
+      // Position is stored from the current player's perspective.
+      // A successful neutral takedown puts the acting player on TOP.
+      state.currentPosition = neutralWasTakedown ? "TOP" : "NEUTRAL";
       state.canCounterTakedown = neutralWasTakedown;
       state.phase = "PLAY";
       return;
@@ -346,6 +348,11 @@ function isNeutralTakedown(card: Card): boolean {
 
 function endTurn(state: GameState) {
   state.previousPosition = state.currentPosition;
+  if (state.currentPosition === "TOP") {
+    state.currentPosition = "BOTTOM";
+  } else if (state.currentPosition === "BOTTOM") {
+    state.currentPosition = "TOP";
+  }
   state.currentTurnIndex = (state.currentTurnIndex + 1) % state.players.length;
 }
 
