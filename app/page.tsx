@@ -1,9 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { io } from "socket.io-client";
 import { getOrCreateSessionId } from "./lib/session";
+
+const BLACK_LOGO = "/img/logos/logo-black.svg";
 
 export default function Home() {
   const router = useRouter();
@@ -86,8 +89,7 @@ export default function Home() {
         placeItems: "center",
         padding: "clamp(16px, 3vw, 36px)",
         fontFamily: "system-ui",
-        background:
-          "radial-gradient(circle at center, #922 0%, #7d1f1f 30%, #4a1111 68%, #240808 100%)",
+        background: "radial-gradient(circle at center, #922 0%, #7d1f1f 30%, #4a1111 68%, #240808 100%)",
       }}
     >
       <main
@@ -106,10 +108,15 @@ export default function Home() {
         }}
       >
         <div>
-          <h1 style={{ margin: 0, fontSize: "clamp(2rem, 6vw, 3.4rem)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-            Grapple
-          </h1>
-          <p style={{ margin: "8px 0 0", opacity: 0.9 }}>Deal. Wrestle. Outsmart. Win the mat.</p>
+          <Image
+            src={BLACK_LOGO}
+            alt="Grapple Wrestling logo"
+            width={900}
+            height={506}
+            priority
+            style={{ width: "min(100%, 460px)", height: "auto", margin: "0 auto" }}
+          />
+          <p style={{ margin: "10px 0 0", opacity: 0.9 }}>Deal. Wrestle. Outsmart. Win the mat.</p>
         </div>
 
         <div style={{ display: "grid", gap: 12, width: "100%" }}>

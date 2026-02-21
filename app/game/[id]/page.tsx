@@ -34,6 +34,7 @@ const positionLabels: Record<Position, string> = {
 
 const BACK_OF_CARD = "/img/cards/back_of_card.png";
 const RULES_CARDS = ["/img/cards/rules1.png", "/img/cards/rules2.png", "/img/cards/rules3.png"];
+const BLUE_LOGO = "/img/logos/logo-blue.svg";
 
 function getCardImage(card: Card | null): string {
   if (!card?.imageFile) return BACK_OF_CARD;
@@ -96,9 +97,12 @@ export default function GamePage() {
         display: "grid",
         gap: 20,
         minHeight: "100vh",
-        background:
-          "radial-gradient(circle at center, rgba(196, 38, 38, 0.5) 0%, rgba(196, 38, 38, 0.5) 18%, transparent 19%, transparent 34%, rgba(18, 73, 148, 0.72) 35%, rgba(18, 73, 148, 0.72) 47%, transparent 48%), linear-gradient(180deg, #2d5c96 0%, #1f4170 100%)",
-        backgroundAttachment: "fixed",
+        backgroundImage:
+          `url(${BLUE_LOGO}), radial-gradient(circle at 90% 86%, rgba(140, 199, 255, 0.22), transparent 55%), linear-gradient(180deg, rgba(11, 28, 56, 0.94) 0%, rgba(13, 48, 92, 0.95) 58%, rgba(10, 26, 50, 0.98) 100%)`,
+        backgroundSize: "clamp(260px, 42vw, 680px) auto, cover, cover",
+        backgroundPosition: "right 4vw bottom 6vh, center, center",
+        backgroundRepeat: "no-repeat",
+        backgroundAttachment: "fixed, fixed, fixed",
         color: "#f9fbff",
       }}
     >

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-label="Grapple Wrestling card game logo">
+  <defs>
+    <linearGradient id="gBlue" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#4c63ff"/>
+      <stop offset="100%" stop-color="#0019d4"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.7"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="675" fill="#000"/>
+  <g filter="url(#shadow)">
+    <text x="600" y="300" text-anchor="middle" font-family="Impact, Arial Black, sans-serif" font-size="230" letter-spacing="6" fill="url(#gBlue)" stroke="#ffffff" stroke-width="8">GRAPPLE</text>
+    <text x="600" y="455" text-anchor="middle" font-family="Brush Script MT, Lucida Handwriting, cursive" font-size="170" fill="#ff1010" stroke="#b30000" stroke-width="3">Wrestling</text>
+    <text x="820" y="525" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="58" fill="#f4f4f4">CARD GAME</text>
+    <text x="820" y="575" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="52" fill="#f4f4f4">established in 1998</text>
+  </g>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-label="Blue Grapple Wrestling logo">
+  <defs>
+    <linearGradient id="gBlue" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#7cc4ff"/>
+      <stop offset="100%" stop-color="#1f60d4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="none"/>
+  <text x="600" y="300" text-anchor="middle" font-family="Impact, Arial Black, sans-serif" font-size="230" letter-spacing="6" fill="url(#gBlue)" stroke="#eaf3ff" stroke-width="8">GRAPPLE</text>
+  <text x="600" y="455" text-anchor="middle" font-family="Brush Script MT, Lucida Handwriting, cursive" font-size="170" fill="#8fc4ff" stroke="#1a4c8f" stroke-width="3">Wrestling</text>
+</svg>
