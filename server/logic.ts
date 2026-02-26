@@ -286,14 +286,12 @@ function applyCardEffects(state: GameState, card: Card, currentPlayerId: string)
     }
 
     case "ATTEMPT_TAKEDOWN":
-      state.currentPosition = "NEUTRAL";
-      state.topPlayerId = undefined;
+      resetToNeutral(state);
       state.phase = "PLAY";
       return;
 
     case "COUNTER":
-      state.currentPosition = "NEUTRAL";
-      state.topPlayerId = undefined;
+      resetToNeutral(state);
       return;
 
     case "TOP":
@@ -310,19 +308,20 @@ function applyCardEffects(state: GameState, card: Card, currentPlayerId: string)
       return;
 
     case "BLOODTIME":
+      resetToNeutral(state);
       // opponent loses next turn: easiest way is store a skip flag
       // MVP: just advance an extra turn right now
       endTurn(state);
       return;
 
     case "OUT_OF_BOUNDS":
-      // revert to previous position if known, else neutral
-      state.currentPosition = state.previousPosition ?? "NEUTRAL";
+      resetToNeutral(state);
       return;
 
     case "PENALTY": {
       const next = nextPlayer(state);
       next.penaltyPoints += 1;
+      resetToNeutral(state);
       // next player loses turn: skip by ending twice
       endTurn(state);
       return;
@@ -331,11 +330,16 @@ function applyCardEffects(state: GameState, card: Card, currentPlayerId: string)
     case "STALLING": {
       const next = nextPlayer(state);
       next.score = Math.max(0, next.score - 1);
-      return; // position maintained
+      resetToNeutral(state);
+      return;
     }
 
     case "END_OF_PERIOD":
-      // MVP: let player choose later; for now keep current position
+      resetToNeutral(state);
+      return;
+
+    case "BONUS":
+      resetToNeutral(state);
       return;
 
     default:
@@ -361,6 +365,11 @@ function syncCurrentTurnPosition(state: GameState) {
   if (state.currentPosition === "NEUTRAL" || !state.topPlayerId) return;
   const currentPlayer = state.players[state.currentTurnIndex];
   state.currentPosition = currentPlayer.id === state.topPlayerId ? "TOP" : "BOTTOM";
+}
+
+function resetToNeutral(state: GameState) {
+  state.currentPosition = "NEUTRAL";
+  state.topPlayerId = undefined;
 }
 
 function nextPlayer(state: GameState) {
