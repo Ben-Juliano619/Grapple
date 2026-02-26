@@ -16,6 +16,7 @@ export type GameState = {
   players: Player[];
   drawPile: Card[];
   discardPile: Card[];
+  playedPile: Card[];
   currentTurnIndex: number;
   currentPosition: Position;
   topPlayerId?: string;
@@ -160,6 +161,7 @@ export function createGameState(id: string): GameState {
     players: [],
     drawPile: [],
     discardPile: [],
+    playedPile: [],
     currentTurnIndex: 0,
     currentPosition: "NEUTRAL",
     topPlayerId: undefined,
@@ -169,6 +171,7 @@ export function createGameState(id: string): GameState {
       const deck = shuffle(buildDeck());
       state.drawPile = deck;
       state.discardPile = [];
+      state.playedPile = [];
       state.currentTurnIndex = 0;
       state.currentPosition = "NEUTRAL";
       state.topPlayerId = undefined;
@@ -223,9 +226,10 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
   // remove from hand, put on discard
   currentPlayer.hand.splice(cardIndex, 1);
   state.discardPile.push(card);
+  state.playedPile.push(card);
 
   // win condition: pin
-  if (card.kind === "PIN") {
+  if (isPinningCard(card)) {
     state.phase = "ENDED";
     return { ok: true };
   }
@@ -369,15 +373,18 @@ function nextPlayer(state: GameState) {
 
 function drawOne(state: GameState): Card {
   if (state.drawPile.length === 0) {
-    // reshuffle discard minus top
-    const top = state.discardPile.pop();
-    const reshuffle = shuffle(state.discardPile);
+    const reshuffle = shuffle(state.playedPile);
     state.drawPile = reshuffle;
-    state.discardPile = top ? [top] : [];
+    state.playedPile = [];
   }
   const c = state.drawPile.pop();
   if (!c) throw new Error("No cards available");
   return c;
+}
+
+function isPinningCard(card: Card): boolean {
+  const imageFile = (card.imageFile ?? "").toLowerCase().replace(/\.png$/i, "");
+  return card.kind === "PIN" || imageFile.endsWith("_pin");
 }
 
 function shuffle<T>(arr: T[]): T[] {
