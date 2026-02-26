@@ -21,8 +21,9 @@ export type GameState = {
   topPlayerId?: string;
   phase: "LOBBY" | "FIND_START_NEUTRAL" | "PLAY" | "ENDED";
   previousPosition?: Position; // for out of bounds
-  // neutral takedown can be countered by the next player
+  // neutral takedown can be countered by the next player only
   canCounterTakedown: boolean;
+  counterPlayerId?: string;
   start: () => void;
 };
 
@@ -165,6 +166,7 @@ export function createGameState(id: string): GameState {
     topPlayerId: undefined,
     phase: "LOBBY",
     canCounterTakedown: false,
+    counterPlayerId: undefined,
     start() {
       const deck = shuffle(buildDeck());
       state.drawPile = deck;
@@ -175,6 +177,7 @@ export function createGameState(id: string): GameState {
       state.previousPosition = undefined;
       state.phase = "FIND_START_NEUTRAL";
       state.canCounterTakedown = false;
+      state.counterPlayerId = undefined;
 
       for (const player of state.players) {
         player.hand = [];
@@ -206,6 +209,9 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
 
   if (action.type === "DRAW") {
     // In your rules: draw happens when you cannot play (we enforce lightly in MVP)
+    // If the bottom wrestler declines to counter immediately, counter window closes.
+    state.canCounterTakedown = false;
+    state.counterPlayerId = undefined;
     currentPlayer.hand.push(drawOne(state));
     endTurn(state);
     return { ok: true };
@@ -264,8 +270,14 @@ function isCardLegal(state: GameState, card: Card): { ok: true } | { ok: false; 
   }
 
   if (card.kind === "COUNTER") {
-    if (state.canCounterTakedown && state.currentPosition === "BOTTOM") return { ok: true };
-    return { ok: false, error: "Counter can only be played right after a successful takedown" };
+    const currentPlayer = state.players[state.currentTurnIndex];
+    const canPlayCounter =
+      state.canCounterTakedown &&
+      state.currentPosition === "BOTTOM" &&
+      state.counterPlayerId === currentPlayer.id;
+
+    if (canPlayCounter) return { ok: true };
+    return { ok: false, error: "Counter can only be played immediately by the bottom wrestler" };
   }
 
   return { ok: false, error: `Card not playable in ${state.currentPosition} position` };
@@ -273,6 +285,7 @@ function isCardLegal(state: GameState, card: Card): { ok: true } | { ok: false; 
 
 function applyCardEffects(state: GameState, card: Card, currentPlayerId: string) {
   state.canCounterTakedown = false;
+  state.counterPlayerId = undefined;
 
   switch (card.kind) {
     case "NEUTRAL": {
@@ -281,6 +294,7 @@ function applyCardEffects(state: GameState, card: Card, currentPlayerId: string)
       state.currentPosition = neutralWasTakedown ? "TOP" : "NEUTRAL";
       state.topPlayerId = neutralWasTakedown ? currentPlayerId : undefined;
       state.canCounterTakedown = neutralWasTakedown;
+      state.counterPlayerId = neutralWasTakedown ? nextPlayer(state).id : undefined;
       state.phase = "PLAY";
       return;
     }
@@ -359,6 +373,7 @@ function endTurn(state: GameState) {
   state.previousPosition = state.currentPosition;
   state.currentTurnIndex = (state.currentTurnIndex + 1) % state.players.length;
   syncCurrentTurnPosition(state);
+  enforcePositionInvariant(state);
 }
 
 function syncCurrentTurnPosition(state: GameState) {
@@ -370,6 +385,16 @@ function syncCurrentTurnPosition(state: GameState) {
 function resetToNeutral(state: GameState) {
   state.currentPosition = "NEUTRAL";
   state.topPlayerId = undefined;
+}
+
+function enforcePositionInvariant(state: GameState) {
+  if (!state.topPlayerId) {
+    state.currentPosition = "NEUTRAL";
+    return;
+  }
+
+  const currentPlayer = state.players[state.currentTurnIndex];
+  state.currentPosition = currentPlayer.id === state.topPlayerId ? "TOP" : "BOTTOM";
 }
 
 function nextPlayer(state: GameState) {
