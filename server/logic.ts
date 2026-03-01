@@ -257,7 +257,12 @@ function isCardLegal(state: GameState, card: Card): { ok: true } | { ok: false; 
   const player = state.players[state.currentTurnIndex];
 
   // Position-matching play
-  if (player.currentPosition === "NEUTRAL" && (card.kind === "NEUTRAL" || card.kind === "ATTEMPT_TAKEDOWN")) return { ok: true };
+  if (player.currentPosition === "NEUTRAL" && (card.kind === "NEUTRAL" || card.kind === "ATTEMPT_TAKEDOWN")) 
+    {
+      player.currentPosition = "TOP"
+      //set other player to the "Bottom"
+      return { ok: true };
+    }
   if (player.currentPosition === "TOP" && card.kind === "TOP") return { ok: true };
   if (player.currentPosition === "BOTTOM" && (card.kind === "BOTTOM" || card.kind === "TRIPOD" || card.kind === "SITOUT")) {
     return { ok: true };
