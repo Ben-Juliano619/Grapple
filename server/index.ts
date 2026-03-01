@@ -122,6 +122,9 @@ io.on("connection", (socket) => {
         hand: [],
         score: 0,
         penaltyPoints: 0,
+        currentPosition: "NEUTRAL",
+        previousPosition: undefined,
+        canCounterTakedown: false,
       });
 
       socket.data.playerId = playerId;

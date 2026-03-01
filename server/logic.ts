@@ -9,6 +9,9 @@ type Player = {
   hand: Card[];
   score: number;
   penaltyPoints: number;
+  currentPosition: Position;
+  previousPosition?: Position; // for out of bounds
+  canCounterTakedown: boolean;
 };
 
 export type GameState = {
@@ -18,12 +21,7 @@ export type GameState = {
   discardPile: Card[];
   playedPile: Card[];
   currentTurnIndex: number;
-  currentPosition: Position;
-  topPlayerId?: string;
   phase: "LOBBY" | "FIND_START_NEUTRAL" | "PLAY" | "ENDED";
-  previousPosition?: Position; // for out of bounds
-  // neutral takedown can be countered by the next player
-  canCounterTakedown: boolean;
   start: () => void;
 };
 
@@ -163,21 +161,14 @@ export function createGameState(id: string): GameState {
     discardPile: [],
     playedPile: [],
     currentTurnIndex: 0,
-    currentPosition: "NEUTRAL",
-    topPlayerId: undefined,
     phase: "LOBBY",
-    canCounterTakedown: false,
     start() {
       const deck = shuffle(buildDeck());
       state.drawPile = deck;
       state.discardPile = [];
       state.playedPile = [];
       state.currentTurnIndex = 0;
-      state.currentPosition = "NEUTRAL";
-      state.topPlayerId = undefined;
-      state.previousPosition = undefined;
       state.phase = "FIND_START_NEUTRAL";
-      state.canCounterTakedown = false;
 
       for (const player of state.players) {
         player.hand = [];
@@ -186,6 +177,9 @@ export function createGameState(id: string): GameState {
         }
         player.score = 0;
         player.penaltyPoints = 0;
+        player.currentPosition = "NEUTRAL";
+        player.previousPosition = undefined;
+        player.canCounterTakedown = false;
       }
     },
   };
@@ -260,53 +254,73 @@ function isCardLegal(state: GameState, card: Card): { ok: true } | { ok: false; 
   const anytime = new Set(["BLOODTIME", "END_OF_PERIOD", "OUT_OF_BOUNDS", "PENALTY", "STALLING"]);
   if (anytime.has(card.kind)) return { ok: true };
 
+  const player = state.players[state.currentTurnIndex];
+
   // Position-matching play
-  if (state.currentPosition === "NEUTRAL" && (card.kind === "NEUTRAL" || card.kind === "ATTEMPT_TAKEDOWN")) return { ok: true };
-  if (state.currentPosition === "TOP" && card.kind === "TOP") return { ok: true };
-  if (state.currentPosition === "BOTTOM" && (card.kind === "BOTTOM" || card.kind === "TRIPOD" || card.kind === "SITOUT")) {
+  if (player.currentPosition === "NEUTRAL" && (card.kind === "NEUTRAL" || card.kind === "ATTEMPT_TAKEDOWN")) return { ok: true };
+  if (player.currentPosition === "TOP" && card.kind === "TOP") return { ok: true };
+  if (player.currentPosition === "BOTTOM" && (card.kind === "BOTTOM" || card.kind === "TRIPOD" || card.kind === "SITOUT")) {
     return { ok: true };
   }
 
   if (card.kind === "COUNTER") {
-    if (state.canCounterTakedown && state.currentPosition === "BOTTOM") return { ok: true };
+    if (player.canCounterTakedown && player.currentPosition === "BOTTOM") return { ok: true };
     return { ok: false, error: "Counter can only be played right after a successful takedown" };
   }
 
-  return { ok: false, error: `Card not playable in ${state.currentPosition} position` };
+  return { ok: false, error: `Card not playable in ${player.currentPosition} position` };
 }
 
 function applyCardEffects(state: GameState, card: Card, currentPlayerId: string) {
-  state.canCounterTakedown = false;
+  const currentPlayer = state.players.find((player) => player.id === currentPlayerId);
+  if (!currentPlayer) return;
+
+  const otherPlayers = state.players.filter((player) => player.id !== currentPlayerId);
+  const next = nextPlayer(state);
+
+  currentPlayer.canCounterTakedown = false;
 
   switch (card.kind) {
     case "NEUTRAL": {
       const neutralWasTakedown = isNeutralTakedown(card);
-      // A successful neutral takedown puts the acting player on TOP.
-      state.currentPosition = neutralWasTakedown ? "TOP" : "NEUTRAL";
-      state.topPlayerId = neutralWasTakedown ? currentPlayerId : undefined;
-      state.canCounterTakedown = neutralWasTakedown;
+      if (neutralWasTakedown) {
+        currentPlayer.currentPosition = "TOP";
+        for (const player of otherPlayers) {
+          player.currentPosition = "BOTTOM";
+          player.canCounterTakedown = false;
+        }
+        next.canCounterTakedown = true;
+      } else {
+        for (const player of state.players) {
+          player.currentPosition = "NEUTRAL";
+          player.canCounterTakedown = false;
+        }
+      }
       state.phase = "PLAY";
       return;
     }
 
     case "ATTEMPT_TAKEDOWN":
-      state.currentPosition = "NEUTRAL";
-      state.topPlayerId = undefined;
+      for (const player of state.players) {
+        player.currentPosition = "NEUTRAL";
+        player.canCounterTakedown = false;
+      }
       state.phase = "PLAY";
       return;
 
     case "COUNTER":
-      state.currentPosition = "NEUTRAL";
-      state.topPlayerId = undefined;
+      for (const player of state.players) {
+        player.currentPosition = "NEUTRAL";
+        player.canCounterTakedown = false;
+      }
       return;
 
     case "TOP":
-      // many top moves likely keep TOP; some may switch to NEUTRAL, etc.
-      state.currentPosition = card.meta?.doesNotChangePosition ? state.currentPosition : "TOP";
+      currentPlayer.currentPosition = card.meta?.doesNotChangePosition ? currentPlayer.currentPosition : "TOP";
       return;
 
     case "BOTTOM":
-      state.currentPosition = card.meta?.doesNotChangePosition ? state.currentPosition : "BOTTOM";
+      currentPlayer.currentPosition = card.meta?.doesNotChangePosition ? currentPlayer.currentPosition : "BOTTOM";
       return;
 
     case "TRIPOD":
@@ -320,23 +334,19 @@ function applyCardEffects(state: GameState, card: Card, currentPlayerId: string)
       return;
 
     case "OUT_OF_BOUNDS":
-      // revert to previous position if known, else neutral
-      state.currentPosition = state.previousPosition ?? "NEUTRAL";
+      // revert this player's position if known, else neutral
+      currentPlayer.currentPosition = currentPlayer.previousPosition ?? "NEUTRAL";
       return;
 
-    case "PENALTY": {
-      const next = nextPlayer(state);
+    case "PENALTY":
       next.penaltyPoints += 1;
       // next player loses turn: skip by ending twice
       endTurn(state);
       return;
-    }
 
-    case "STALLING": {
-      const next = nextPlayer(state);
+    case "STALLING":
       next.score = Math.max(0, next.score - 1);
       return; // position maintained
-    }
 
     case "END_OF_PERIOD":
       // MVP: let player choose later; for now keep current position
@@ -356,16 +366,12 @@ function isNeutralTakedown(card: Card): boolean {
 }
 
 function endTurn(state: GameState) {
-  state.previousPosition = state.currentPosition;
+  const currentPlayer = state.players[state.currentTurnIndex];
+  currentPlayer.previousPosition = currentPlayer.currentPosition;
+  currentPlayer.canCounterTakedown = false;
   state.currentTurnIndex = (state.currentTurnIndex + 1) % state.players.length;
-  syncCurrentTurnPosition(state);
 }
 
-function syncCurrentTurnPosition(state: GameState) {
-  if (state.currentPosition === "NEUTRAL" || !state.topPlayerId) return;
-  const currentPlayer = state.players[state.currentTurnIndex];
-  state.currentPosition = currentPlayer.id === state.topPlayerId ? "TOP" : "BOTTOM";
-}
 
 function nextPlayer(state: GameState) {
   return state.players[(state.currentTurnIndex + 1) % state.players.length];
