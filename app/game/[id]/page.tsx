@@ -24,6 +24,7 @@ type GameState = {
   discardPile: Card[];
   currentTurnIndex: number;
   phase: "LOBBY" | "FIND_START_NEUTRAL" | "PLAY" | "ENDED";
+  pendingEndOfPeriodPlayerId?: string;
 };
 
 const positionLabels: Record<Position, string> = {
@@ -87,6 +88,11 @@ export default function GamePage() {
   const isMyTurn = Boolean(currentPlayer && currentPlayer.id === playerId);
   const topCard = state?.discardPile[state.discardPile.length - 1] ?? null;
   const cardWidth = "clamp(124px, 12.5vw, 190px)";
+  const needsEndOfPeriodChoice = Boolean(state && playerId && state.pendingEndOfPeriodPlayerId === playerId);
+
+  function chooseEndOfPeriodPosition(position: Position) {
+    socket.emit("turn:endOfPeriodPosition", { gameId, position });
+  }
 
   return (
     <div
@@ -230,7 +236,7 @@ export default function GamePage() {
         >
           <button
             onClick={() => socket.emit("turn:draw", { gameId })}
-            disabled={!state || !isMyTurn || state.phase === "LOBBY"}
+            disabled={!state || !isMyTurn || state.phase === "LOBBY" || needsEndOfPeriodChoice}
             style={{
               width: cardWidth,
               borderRadius: 12,
@@ -286,7 +292,7 @@ export default function GamePage() {
               <button
                 key={card.id}
                 onClick={() => socket.emit("turn:playCard", { gameId, cardId: card.id })}
-                disabled={!isMyTurn || state?.phase === "LOBBY"}
+                disabled={!isMyTurn || state?.phase === "LOBBY" || needsEndOfPeriodChoice}
                 style={{
                   width: "100%",
                   maxWidth: cardWidth,
@@ -312,6 +318,55 @@ export default function GamePage() {
           <div>Joining game…</div>
         )}
       </section>
+
+      {needsEndOfPeriodChoice ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.58)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 30,
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: "min(92vw, 480px)",
+              borderRadius: 14,
+              border: "1px solid rgba(255,255,255,0.4)",
+              background: "#0b1f3d",
+              padding: 18,
+              display: "grid",
+              gap: 12,
+            }}
+          >
+            <h3 style={{ margin: 0 }}>End of Period</h3>
+            <p style={{ margin: 0 }}>Choose the position for the next sequence.</p>
+            <div style={{ display: "grid", gap: 8 }}>
+              <button
+                onClick={() => chooseEndOfPeriodPosition("TOP")}
+                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
+              >
+                Choose Top
+              </button>
+              <button
+                onClick={() => chooseEndOfPeriodPosition("BOTTOM")}
+                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
+              >
+                Choose Bottom
+              </button>
+              <button
+                onClick={() => chooseEndOfPeriodPosition("NEUTRAL")}
+                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
+              >
+                Choose Neutral
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

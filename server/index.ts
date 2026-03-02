@@ -3,6 +3,7 @@ import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import { createGameState, applyAction, isPlayerInGame } from "./logic";
+import { Position } from "../shared/types";
 
 const app = express();
 const server = http.createServer(app);
@@ -172,6 +173,22 @@ io.on("connection", (socket) => {
 
     const playerId = socket.data.playerId as string;
     const result = applyAction(state, { type: "DRAW", playerId });
+    if (result.ok) {
+      io.to(gameId).emit("game:state", state);
+      return;
+    }
+
+    return socket.emit("game:error", "error" in result ? result.error : "Unknown error");
+  });
+
+  socket.on("turn:endOfPeriodPosition", ({ gameId, position }: { gameId: string; position: Position }) => {
+    const state = games.get(gameId);
+    if (!state) return socket.emit("game:error", "Game not found");
+
+    const playerId = socket.data.playerId as string;
+    if (!isPlayerInGame(state, playerId)) return socket.emit("game:error", "Not in this game");
+
+    const result = applyAction(state, { type: "END_OF_PERIOD_POSITION", playerId, position });
     if (result.ok) {
       io.to(gameId).emit("game:state", state);
       return;
