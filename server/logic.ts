@@ -22,6 +22,7 @@ export type GameState = {
   playedPile: Card[];
   currentTurnIndex: number;
   phase: "LOBBY" | "FIND_START_NEUTRAL" | "PLAY" | "ENDED";
+  pendingEndOfPeriodPlayerId?: string;
   start: () => void;
 };
 
@@ -162,6 +163,7 @@ export function createGameState(id: string): GameState {
     playedPile: [],
     currentTurnIndex: 0,
     phase: "LOBBY",
+    pendingEndOfPeriodPlayerId: undefined,
     start() {
       const deck = shuffle(buildDeck());
       state.drawPile = deck;
@@ -169,6 +171,7 @@ export function createGameState(id: string): GameState {
       state.playedPile = [];
       state.currentTurnIndex = 0;
       state.phase = "FIND_START_NEUTRAL";
+      state.pendingEndOfPeriodPlayerId = undefined;
 
       for (const player of state.players) {
         player.hand = [];
@@ -188,7 +191,8 @@ export function createGameState(id: string): GameState {
 
 type Action =
   | { type: "PLAY_CARD"; playerId: string; cardId: string }
-  | { type: "DRAW"; playerId: string };
+  | { type: "DRAW"; playerId: string }
+  | { type: "END_OF_PERIOD_POSITION"; playerId: string; position: Position };
 
 export function isPlayerInGame(state: GameState, playerId: string) {
   return state.players.some((p) => p.id === playerId);
@@ -200,6 +204,21 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
 
   const currentPlayer = state.players[state.currentTurnIndex];
   if (currentPlayer.id !== action.playerId) return { ok: false, error: "Not your turn" };
+
+  if (action.type === "END_OF_PERIOD_POSITION") {
+    if (state.pendingEndOfPeriodPlayerId !== action.playerId) {
+      return { ok: false, error: "No end-of-period position choice is pending" };
+    }
+
+    applyEndOfPeriodPositionChoice(state, action.playerId, action.position);
+    state.pendingEndOfPeriodPlayerId = undefined;
+    endTurn(state);
+    return { ok: true };
+  }
+
+  if (state.pendingEndOfPeriodPlayerId) {
+    return { ok: false, error: "Choose your position for End of Period before continuing" };
+  }
 
   if (action.type === "DRAW") {
     // In your rules: draw happens when you cannot play (we enforce lightly in MVP)
@@ -235,9 +254,11 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
   }
 
   // apply effects
-  applyCardEffects(state, card, currentPlayer.id);
+  const shouldEndTurn = applyCardEffects(state, card, currentPlayer.id);
 
-  endTurn(state);
+  if (shouldEndTurn) {
+    endTurn(state);
+  }
   return { ok: true };
 }
 
@@ -276,10 +297,9 @@ function isCardLegal(state: GameState, card: Card): { ok: true } | { ok: false; 
   return { ok: false, error: `Card not playable in ${player.currentPosition} position` };
 }
 
-function applyCardEffects(state: GameState, card: Card, currentPlayerId: string) { 
+function applyCardEffects(state: GameState, card: Card, currentPlayerId: string): boolean {
   const currentPlayer = state.players.find((player) => player.id === currentPlayerId);
-  console.log("APPLY CALLED");
-  if (!currentPlayer) return;
+  if (!currentPlayer) return false;
 
   const otherPlayers = state.players.filter((player) => player.id !== currentPlayerId);
   const next = nextPlayer(state);
@@ -295,7 +315,6 @@ function applyCardEffects(state: GameState, card: Card, currentPlayerId: string)
         for (const player of otherPlayers) {
           player.currentPosition = "BOTTOM";
           player.canCounterTakedown = true;
-          console.log("STUPIDITY", __filename, process.pid, new Date().toISOString())
         }
         next.canCounterTakedown = true;
       } else {
@@ -305,7 +324,7 @@ function applyCardEffects(state: GameState, card: Card, currentPlayerId: string)
         }
       }
       state.phase = "PLAY";
-      return;
+      return true;
     }
 
     case "ATTEMPT_TAKEDOWN":
@@ -314,54 +333,71 @@ function applyCardEffects(state: GameState, card: Card, currentPlayerId: string)
         player.canCounterTakedown = false;
       }
       state.phase = "PLAY";
-      return;
+      return true;
 
     case "COUNTER":
       for (const player of state.players) {
         player.currentPosition = "NEUTRAL";
         player.canCounterTakedown = false;
       }
-      return;
+      return true;
 
     case "TOP":
       currentPlayer.currentPosition = card.meta?.doesNotChangePosition ? currentPlayer.currentPosition : "TOP";
-      return;
+      return true;
 
     case "BOTTOM":
       currentPlayer.currentPosition = card.meta?.doesNotChangePosition ? currentPlayer.currentPosition : "BOTTOM";
-      return;
+      return true;
 
     case "TRIPOD":
     case "SITOUT":
-      return;
+      return true;
 
     case "BLOODTIME":
       // opponent loses next turn: easiest way is store a skip flag
       // MVP: just advance an extra turn right now
       endTurn(state);
-      return;
+      return true;
 
     case "OUT_OF_BOUNDS":
       // revert this player's position if known, else neutral
       currentPlayer.currentPosition = currentPlayer.previousPosition ?? "NEUTRAL";
-      return;
+      return true;
 
     case "PENALTY":
       next.penaltyPoints += 1;
       // next player loses turn: skip by ending twice
       endTurn(state);
-      return;
+      return true;
 
     case "STALLING":
       next.score = Math.max(0, next.score - 1);
-      return; // position maintained
+      return true; // position maintained
 
     case "END_OF_PERIOD":
-      // MVP: let player choose later; for now keep current position
-      return;
+      state.pendingEndOfPeriodPlayerId = currentPlayerId;
+      return false;
 
     default:
-      return;
+      return true;
+  }
+}
+
+function applyEndOfPeriodPositionChoice(state: GameState, currentPlayerId: string, position: Position) {
+  if (position === "NEUTRAL") {
+    setAllPlayersToNeutral(state);
+    return;
+  }
+
+  const currentPlayer = state.players.find((player) => player.id === currentPlayerId);
+  if (!currentPlayer) return;
+
+  currentPlayer.currentPosition = position;
+  if (position === "TOP") {
+    setOtherPlayersToBottom(state, currentPlayerId);
+  } else {
+    setOtherPlayersToTop(state, currentPlayerId);
   }
 }
 
