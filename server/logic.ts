@@ -294,7 +294,22 @@ function isCardLegal(state: GameState, card: Card): { ok: true } | { ok: false; 
     return { ok: false, error: "Counter can only be played right after a successful takedown" };
   }
 
+  if (card.kind === "PIN") {
+    const requiredPosition = getPinRequiredPosition(card);
+    if (!requiredPosition) return { ok: false, error: "PIN card is missing a valid position" };
+    if (player.currentPosition === requiredPosition) return { ok: true };
+    return { ok: false, error: `PIN can only be played from ${requiredPosition}` };
+  }
+
   return { ok: false, error: `Card not playable in ${player.currentPosition} position` };
+}
+
+function getPinRequiredPosition(card: Card): Position | null {
+  const imageFile = card.imageFile?.toLowerCase() ?? "";
+  if (imageFile.startsWith("top_")) return "TOP";
+  if (imageFile.startsWith("bottom_")) return "BOTTOM";
+  if (imageFile.startsWith("neutral_")) return "NEUTRAL";
+  return null;
 }
 
 function applyCardEffects(state: GameState, card: Card, currentPlayerId: string): boolean {
