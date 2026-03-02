@@ -131,7 +131,7 @@ export default function GamePage() {
           </button>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontWeight: 600 }}>{state ? `Phase: ${state.phase}` : "Connecting..."}</div>
-            <div>Position: {currentPlayer ? positionLabels[currentPlayer.currentPosition] : "—"}</div>
+            <div>Position: {me ? positionLabels[me.currentPosition] : "—"}</div>
             <div>{currentPlayer ? `Turn: ${currentPlayer.name}` : "Waiting for players..."}</div>
           </div>
         </div>
