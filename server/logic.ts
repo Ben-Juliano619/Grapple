@@ -276,8 +276,9 @@ function isCardLegal(state: GameState, card: Card): { ok: true } | { ok: false; 
   return { ok: false, error: `Card not playable in ${player.currentPosition} position` };
 }
 
-function applyCardEffects(state: GameState, card: Card, currentPlayerId: string) {
+function applyCardEffects(state: GameState, card: Card, currentPlayerId: string) { 
   const currentPlayer = state.players.find((player) => player.id === currentPlayerId);
+  console.log("APPLY CALLED");
   if (!currentPlayer) return;
 
   const otherPlayers = state.players.filter((player) => player.id !== currentPlayerId);
@@ -287,12 +288,14 @@ function applyCardEffects(state: GameState, card: Card, currentPlayerId: string)
 
   switch (card.kind) {
     case "NEUTRAL": {
+      console.log("NEUTRAL MF CASE");
       const neutralWasTakedown = isNeutralTakedown(card);
       if (neutralWasTakedown) {
         currentPlayer.currentPosition = "TOP";
         for (const player of otherPlayers) {
           player.currentPosition = "BOTTOM";
-          player.canCounterTakedown = false;
+          player.canCounterTakedown = true;
+          console.log("STUPIDITY", __filename, process.pid, new Date().toISOString())
         }
         next.canCounterTakedown = true;
       } else {
@@ -361,6 +364,28 @@ function applyCardEffects(state: GameState, card: Card, currentPlayerId: string)
       return;
   }
 }
+
+function setOtherPlayersToTop(state: GameState, currentPlayerId: string) {
+    for (const player of state.players) {
+      if (player.id === currentPlayerId) continue;
+    player.currentPosition = "TOP";
+  }
+}
+
+function setOtherPlayersToBottom(state: GameState, currentPlayerId: string) {
+  for (const player of state.players) {
+    if (player.id === currentPlayerId) continue;
+    player.currentPosition = "BOTTOM";
+  }
+}
+
+function setAllPlayersToNeutral(state: GameState) {
+  for (const player of state.players) {
+    player.currentPosition = "NEUTRAL";
+    player.canCounterTakedown = false;
+  }
+}
+
 
 function isNeutralTakedown(card: Card): boolean {
   if (card.kind !== "NEUTRAL") return false;
