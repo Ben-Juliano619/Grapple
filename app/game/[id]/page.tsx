@@ -13,6 +13,8 @@ type PlayerState = {
   hand: Card[];
   score: number;
   penaltyPoints: number;
+  currentPosition: Position;
+  previousPosition?: Position;
 };
 
 type GameState = {
@@ -21,9 +23,7 @@ type GameState = {
   drawPile: Card[];
   discardPile: Card[];
   currentTurnIndex: number;
-  currentPosition: Position;
   phase: "LOBBY" | "FIND_START_NEUTRAL" | "PLAY" | "ENDED";
-  previousPosition?: Position;
 };
 
 const positionLabels: Record<Position, string> = {
@@ -131,7 +131,7 @@ export default function GamePage() {
           </button>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontWeight: 600 }}>{state ? `Phase: ${state.phase}` : "Connecting..."}</div>
-            <div>Position: {state ? positionLabels[state.currentPosition] : "—"}</div>
+            <div>Position: {currentPlayer ? positionLabels[currentPlayer.currentPosition] : "—"}</div>
             <div>{currentPlayer ? `Turn: ${currentPlayer.name}` : "Waiting for players..."}</div>
           </div>
         </div>
@@ -198,6 +198,7 @@ export default function GamePage() {
                 <div style={{ fontWeight: 600 }}>{player.name}</div>
                 <div style={{ fontSize: 12 }}>Score: {player.score}</div>
                 <div style={{ fontSize: 12 }}>Penalties: {player.penaltyPoints}</div>
+                <div style={{ fontSize: 12 }}>Position: {positionLabels[player.currentPosition]}</div>
                 <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
                   {Array.from({ length: player.hand.length }).map((_, index) => (
                     <Image
@@ -278,7 +279,9 @@ export default function GamePage() {
       <section style={{ display: "grid", gap: 12 }}>
         <h3 style={{ margin: 0 }}>Your Hand {me ? `(${me.hand.length})` : ""}</h3>
         {me ? (
-          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(clamp(124px, 12.5vw, 190px), 1fr))", width: "100%" }}>
+          <>
+            <div style={{ fontSize: 13 }}>Your position: {positionLabels[me.currentPosition]}</div>
+            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(clamp(124px, 12.5vw, 190px), 1fr))", width: "100%" }}>
             {me.hand.map((card) => (
               <button
                 key={card.id}
@@ -303,7 +306,8 @@ export default function GamePage() {
                 />
               </button>
             ))}
-          </div>
+            </div>
+          </>
         ) : (
           <div>Joining game…</div>
         )}
