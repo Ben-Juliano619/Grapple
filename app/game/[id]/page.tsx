@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import type { Card, Position } from "../../../shared/types";
 import { getSocket } from "../../lib/socket";
 import { getOrCreateSessionId } from "../../lib/session";
@@ -25,6 +25,7 @@ type GameState = {
   currentTurnIndex: number;
   phase: "LOBBY" | "FIND_START_NEUTRAL" | "PLAY" | "ENDED";
   pendingEndOfPeriodPlayerId?: string;
+  rematchVotes: string[];
 };
 
 const positionLabels: Record<Position, string> = {
@@ -43,6 +44,7 @@ function getCardImage(card: Card | null): string {
 
 export default function GamePage() {
   const params = useParams();
+  const router = useRouter();
   const gameId = params.id as string;
 
   const socket = useMemo(() => getSocket(), []);
@@ -89,6 +91,9 @@ export default function GamePage() {
   const topCard = state?.discardPile[state.discardPile.length - 1] ?? null;
   const cardWidth = "clamp(124px, 12.5vw, 190px)";
   const needsEndOfPeriodChoice = Boolean(state && playerId && state.pendingEndOfPeriodPlayerId === playerId);
+  const rematchVotesCount = state?.rematchVotes.length ?? 0;
+  const hasVotedForRematch = Boolean(playerId && state?.rematchVotes.includes(playerId));
+  const needsRematchAgreement = state?.phase === "ENDED";
 
   function chooseEndOfPeriodPosition(position: Position) {
     socket.emit("turn:endOfPeriodPosition", { gameId, position });
@@ -318,6 +323,77 @@ export default function GamePage() {
           <div>Joining game…</div>
         )}
       </section>
+
+      {needsRematchAgreement ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.58)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 35,
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: "min(92vw, 520px)",
+              borderRadius: 14,
+              border: "1px solid rgba(255,255,255,0.4)",
+              background: "#0b1f3d",
+              padding: 18,
+              display: "grid",
+              gap: 12,
+            }}
+          >
+            <h3 style={{ margin: 0 }}>Game Over</h3>
+            <p style={{ margin: 0 }}>Do both players want a rematch?</p>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontSize: 13, opacity: 0.9 }}>Rematch agreement</div>
+              <div style={{ width: "100%", height: 12, borderRadius: 999, background: "rgba(255,255,255,0.2)", overflow: "hidden" }}>
+                <div
+                  style={{
+                    width: `${Math.min(100, (rematchVotesCount / 2) * 100)}%`,
+                    height: "100%",
+                    background: "#3bd37f",
+                    transition: "width 150ms ease",
+                  }}
+                />
+              </div>
+              <div style={{ fontWeight: 700 }}>{Math.min(rematchVotesCount, 2)}/2</div>
+            </div>
+
+            <div style={{ display: "grid", gap: 8 }}>
+              <button
+                onClick={() => socket.emit("game:requestRematch", { gameId })}
+                disabled={hasVotedForRematch}
+                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
+              >
+                {hasVotedForRematch ? "Waiting for opponent..." : "Rematch"}
+              </button>
+
+              <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+                Game options
+                <select disabled style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", background: "#f5f5f5" }}>
+                  <option>Classic</option>
+                  <option>3 two minute rounds (stub)</option>
+                </select>
+              </label>
+
+              <button
+                onClick={() => {
+                  socket.emit("game:end", { gameId });
+                  router.push("/");
+                }}
+                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
+              >
+                End Game (Back to Menu)
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {needsEndOfPeriodChoice ? (
         <div
