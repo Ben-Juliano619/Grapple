@@ -23,6 +23,7 @@ export type GameState = {
   currentTurnIndex: number;
   phase: "LOBBY" | "FIND_START_NEUTRAL" | "PLAY" | "ENDED";
   pendingEndOfPeriodPlayerId?: string;
+  rematchVotes: string[];
   start: () => void;
 };
 
@@ -164,6 +165,7 @@ export function createGameState(id: string): GameState {
     currentTurnIndex: 0,
     phase: "LOBBY",
     pendingEndOfPeriodPlayerId: undefined,
+    rematchVotes: [],
     start() {
       const deck = shuffle(buildDeck());
       state.drawPile = deck;
@@ -172,6 +174,7 @@ export function createGameState(id: string): GameState {
       state.currentTurnIndex = 0;
       state.phase = "FIND_START_NEUTRAL";
       state.pendingEndOfPeriodPlayerId = undefined;
+      state.rematchVotes = [];
 
       for (const player of state.players) {
         player.hand = [];
@@ -192,13 +195,30 @@ export function createGameState(id: string): GameState {
 type Action =
   | { type: "PLAY_CARD"; playerId: string; cardId: string }
   | { type: "DRAW"; playerId: string }
-  | { type: "END_OF_PERIOD_POSITION"; playerId: string; position: Position };
+  | { type: "END_OF_PERIOD_POSITION"; playerId: string; position: Position }
+  | { type: "REQUEST_REMATCH"; playerId: string };
 
 export function isPlayerInGame(state: GameState, playerId: string) {
   return state.players.some((p) => p.id === playerId);
 }
 
 export function applyAction(state: GameState, action: Action): { ok: true } | { ok: false; error: string } {
+  if (action.type === "REQUEST_REMATCH") {
+    if (state.phase !== "ENDED") return { ok: false, error: "Rematch is only available after game end" };
+    if (!isPlayerInGame(state, action.playerId)) return { ok: false, error: "Not in this game" };
+
+    const alreadyVoted = state.rematchVotes.includes(action.playerId);
+    if (!alreadyVoted) {
+      state.rematchVotes.push(action.playerId);
+    }
+
+    if (state.rematchVotes.length >= 2) {
+      state.start();
+    }
+
+    return { ok: true };
+  }
+
   if (state.phase === "LOBBY") return { ok: false, error: "Game not started" };
   if (state.phase === "ENDED") return { ok: false, error: "Game already ended" };
 

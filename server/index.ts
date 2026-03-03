@@ -196,6 +196,36 @@ io.on("connection", (socket) => {
 
     return socket.emit("game:error", "error" in result ? result.error : "Unknown error");
   });
+
+
+  socket.on("game:requestRematch", ({ gameId }: { gameId: string }) => {
+    const state = games.get(gameId);
+    if (!state) return socket.emit("game:error", "Game not found");
+
+    const playerId = socket.data.playerId as string;
+    if (!isPlayerInGame(state, playerId)) return socket.emit("game:error", "Not in this game");
+
+    const result = applyAction(state, { type: "REQUEST_REMATCH", playerId });
+    if (result.ok) {
+      io.to(gameId).emit("game:state", state);
+      return;
+    }
+
+    return socket.emit("game:error", "error" in result ? result.error : "Unknown error");
+  });
+
+  socket.on("game:end", ({ gameId }: { gameId: string }) => {
+    const state = games.get(gameId);
+    if (!state) return socket.emit("game:error", "Game not found");
+
+    const playerId = socket.data.playerId as string;
+    if (!isPlayerInGame(state, playerId)) return socket.emit("game:error", "Not in this game");
+
+    state.phase = "LOBBY";
+    state.pendingEndOfPeriodPlayerId = undefined;
+    state.rematchVotes = [];
+    io.to(gameId).emit("game:state", state);
+  });
 });
 
 server.listen(3001, () => console.log("Server running on :3001"));
