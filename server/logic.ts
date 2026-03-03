@@ -343,7 +343,6 @@ function applyCardEffects(state: GameState, card: Card, currentPlayerId: string)
 
   switch (card.kind) {
     case "NEUTRAL": {
-      console.log("NEUTRAL MF CASE");
       const neutralWasTakedown = isNeutralTakedown(card);
       if (neutralWasTakedown) {
         currentPlayer.currentPosition = "TOP";
