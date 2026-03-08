@@ -12,12 +12,18 @@ export default function Home() {
   const [gameCode, setGameCode] = useState("");
   const [playerName, setPlayerName] = useState("Player");
   const [errorMessage, setErrorMessage] = useState("");
+  const [gameMode, setGameMode] = useState<"CLASSIC" | "THREE_ROUND">("CLASSIC");
 
   useEffect(() => {
     const storedName = window.localStorage.getItem("grapple.playerName");
     if (storedName) {
       setPlayerName(storedName);
     }
+    const storedMode = window.localStorage.getItem("grapple.gameMode");
+    if (storedMode === "CLASSIC" || storedMode === "THREE_ROUND") {
+      setGameMode(storedMode);
+    }
+
     getOrCreateSessionId();
     return () => {
       socket.disconnect();
@@ -32,10 +38,11 @@ export default function Home() {
     }
 
     window.localStorage.setItem("grapple.playerName", trimmedPlayerName);
+    window.localStorage.setItem("grapple.gameMode", gameMode);
     setErrorMessage("");
     socket.emit(
       "game:create",
-      null,
+      { mode: gameMode },
       (response: { ok: boolean; gameId?: string; error?: string }) => {
         if (response.ok && response.gameId) {
           router.push(`/game/${response.gameId}`);
@@ -73,6 +80,7 @@ export default function Home() {
         }
 
         window.localStorage.setItem("grapple.playerName", trimmedPlayerName);
+        window.localStorage.setItem("grapple.gameMode", gameMode);
         router.push(`/game/${trimmedCode}`);
       },
     );
@@ -152,16 +160,27 @@ export default function Home() {
             }}
           >
             <summary style={{ cursor: "pointer", fontWeight: 700 }}>Game Options</summary>
-            <div style={{ marginTop: 10, display: "grid", gap: 8, opacity: 0.85 }}>
-              <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input type="checkbox" disabled />
-                Enable advanced rules (coming soon)
+            <div style={{ marginTop: 10, display: "grid", gap: 8, opacity: 0.92 }}>
+              <label style={{ display: "grid", gap: 6 }}>
+                Game mode
+                <select
+                  value={gameMode}
+                  onChange={(e) => setGameMode(e.target.value as "CLASSIC" | "THREE_ROUND")}
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    border: "1px solid rgba(255,255,255,0.45)",
+                    background: "rgba(255,255,255,0.08)",
+                    color: "#fff",
+                  }}
+                >
+                  <option value="CLASSIC" style={{ color: "#111" }}>Classic</option>
+                  <option value="THREE_ROUND" style={{ color: "#111" }}>3 two-minute rounds</option>
+                </select>
               </label>
-              <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input type="checkbox" disabled />
-                Team mode (coming soon)
-              </label>
-              <small>Stub only for now — options will be wired up in a future update.</small>
+              <small>Selected mode will be used when creating a game.</small>
             </div>
           </details>
         </div>

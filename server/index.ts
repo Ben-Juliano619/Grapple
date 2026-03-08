@@ -49,16 +49,26 @@ function getResumePlayerId(gameId: string, sessionId: string) {
 }
 
 io.on("connection", (socket) => {
-  socket.on("game:create", (_payload: unknown, callback?: (response: { ok: true; gameId: string } | { ok: false; error: string }) => void) => {
-    const gameId = createUniqueGameId();
+  socket.on(
+    "game:create",
+    (
+      payload: { mode?: "CLASSIC" | "THREE_ROUND" } | null,
+      callback?: (response: { ok: true; gameId: string } | { ok: false; error: string }) => void,
+    ) => {
+      const gameId = createUniqueGameId();
 
-    const state = createGameState(gameId);
-    games.set(gameId, state);
-    gameSessions.set(gameId, new Map());
-    socket.join(gameId);
-    io.to(gameId).emit("game:state", state);
-    callback?.({ ok: true, gameId });
-  });
+      const state = createGameState(gameId);
+      if (payload?.mode === "CLASSIC" || payload?.mode === "THREE_ROUND") {
+        state.gameMode = payload.mode;
+      }
+
+      games.set(gameId, state);
+      gameSessions.set(gameId, new Map());
+      socket.join(gameId);
+      io.to(gameId).emit("game:state", state);
+      callback?.({ ok: true, gameId });
+    },
+  );
 
   socket.on(
     "game:validateJoin",
