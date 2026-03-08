@@ -2,7 +2,7 @@
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
-import { createGameState, applyAction, isPlayerInGame } from "./logic";
+import { createGameState, applyAction, isPlayerInGame, tickRoundTimer } from "./logic";
 import { Position } from "../shared/types";
 
 const app = express();
@@ -141,6 +141,35 @@ io.on("connection", (socket) => {
     },
   );
 
+  socket.on("game:setMode", ({ gameId, mode }: { gameId: string; mode: "CLASSIC" | "THREE_ROUND" }) => {
+    const state = games.get(gameId);
+    if (!state) return socket.emit("game:error", "Game not found");
+
+    const result = applyAction(state, { type: "SET_MODE", mode });
+    if (!result.ok) return socket.emit("game:error", "error" in result ? result.error : "Unknown error");
+    io.to(gameId).emit("game:state", state);
+  });
+
+  socket.on("round:coinWinnerDecision", ({ gameId, deferStartChoice }: { gameId: string; deferStartChoice: boolean }) => {
+    const state = games.get(gameId);
+    if (!state) return socket.emit("game:error", "Game not found");
+
+    const playerId = socket.data.playerId as string;
+    const result = applyAction(state, { type: "ROUND2_DECISION", playerId, deferStartChoice });
+    if (!result.ok) return socket.emit("game:error", "error" in result ? result.error : "Unknown error");
+    io.to(gameId).emit("game:state", state);
+  });
+
+  socket.on("round:startPosition", ({ gameId, position }: { gameId: string; position: Position }) => {
+    const state = games.get(gameId);
+    if (!state) return socket.emit("game:error", "Game not found");
+
+    const playerId = socket.data.playerId as string;
+    const result = applyAction(state, { type: "ROUND_START_POSITION", playerId, position });
+    if (!result.ok) return socket.emit("game:error", "error" in result ? result.error : "Unknown error");
+    io.to(gameId).emit("game:state", state);
+  });
+
   socket.on("game:start", ({ gameId }: { gameId: string }) => {
     const state = games.get(gameId);
     if (!state) return socket.emit("game:error", "Game not found");
@@ -223,9 +252,22 @@ io.on("connection", (socket) => {
 
     state.phase = "LOBBY";
     state.pendingEndOfPeriodPlayerId = undefined;
+    state.pendingRound2DecisionPlayerId = undefined;
+    state.pendingRound2StartPositionChooserPlayerId = undefined;
+    state.pendingRound3StartPositionChooserPlayerId = undefined;
     state.rematchVotes = [];
+    state.roundEndsAt = undefined;
     io.to(gameId).emit("game:state", state);
   });
 });
+
+setInterval(() => {
+  for (const [gameId, state] of games.entries()) {
+    const changed = tickRoundTimer(state);
+    if (changed) {
+      io.to(gameId).emit("game:state", state);
+    }
+  }
+}, 1000);
 
 server.listen(3001, () => console.log("Server running on :3001"));

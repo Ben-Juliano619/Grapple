@@ -24,6 +24,18 @@ type GameState = {
   discardPile: Card[];
   currentTurnIndex: number;
   phase: "LOBBY" | "FIND_START_NEUTRAL" | "PLAY" | "ENDED";
+  gameMode: "CLASSIC" | "THREE_ROUND";
+  playerBanners: Record<string, "GREEN" | "RED">;
+  currentRound: number;
+  roundWins: Record<string, number>;
+  roundEndsAt?: number;
+  round2CoinFlipWinnerPlayerId?: string;
+  pendingRound2DecisionPlayerId?: string;
+  pendingRound2StartPositionChooserPlayerId?: string;
+  pendingRound3StartPositionChooserPlayerId?: string;
+  gameWinnerPlayerId?: string;
+  gameResult?: "WIN" | "DRAW";
+  overtimeStubbed?: boolean;
   pendingEndOfPeriodPlayerId?: string;
   rematchVotes: string[];
 };
@@ -53,6 +65,7 @@ export default function GamePage() {
   const [error, setError] = useState<string | null>(null);
   const [showRules, setShowRules] = useState(false);
   const [rulesIndex, setRulesIndex] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const playerName = window.localStorage.getItem("grapple.playerName") ?? "Player";
@@ -84,6 +97,11 @@ export default function GamePage() {
     };
   }, [socket, gameId]);
 
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
   const me = state?.players.find((player) => player.id === playerId) ?? null;
   const opponents = state?.players.filter((player) => player.id !== playerId) ?? [];
   const currentPlayer = state?.players[state.currentTurnIndex];
@@ -94,6 +112,15 @@ export default function GamePage() {
   const rematchVotesCount = state?.rematchVotes.length ?? 0;
   const hasVotedForRematch = Boolean(playerId && state?.rematchVotes.includes(playerId));
   const needsRematchAgreement = state?.phase === "ENDED";
+  const pendingRound2Decision = Boolean(state && playerId && state.pendingRound2DecisionPlayerId === playerId);
+  const pendingRoundStartPositionChoice = Boolean(
+    state &&
+      playerId &&
+      (state.pendingRound2StartPositionChooserPlayerId === playerId || state.pendingRound3StartPositionChooserPlayerId === playerId),
+  );
+  const roundSecondsLeft = state?.roundEndsAt ? Math.max(0, Math.ceil((state.roundEndsAt - now) / 1000)) : null;
+  const roundTimerLabel =
+    roundSecondsLeft === null ? "--:--" : `${Math.floor(roundSecondsLeft / 60).toString().padStart(2, "0")}:${(roundSecondsLeft % 60).toString().padStart(2, "0")}`;
 
   function chooseEndOfPeriodPosition(position: Position) {
     socket.emit("turn:endOfPeriodPosition", { gameId, position });
@@ -144,9 +171,16 @@ export default function GamePage() {
             <div style={{ fontWeight: 600 }}>{state ? `Phase: ${state.phase}` : "Connecting..."}</div>
             <div>Position: {me ? positionLabels[me.currentPosition] : "—"}</div>
             <div>{currentPlayer ? `Turn: ${currentPlayer.name}` : "Waiting for players..."}</div>
+            {state?.gameMode === "THREE_ROUND" ? <div>Round Timer: {roundTimerLabel}</div> : null}
           </div>
         </div>
       </header>
+
+      {state?.gameMode === "THREE_ROUND" ? (
+        <div style={{ background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 10, padding: "8px 12px", fontWeight: 700 }}>
+          Round {state.currentRound} {state.gameResult === "DRAW" ? "- Draw" : ""}
+        </div>
+      ) : null}
 
       {showRules ? (
         <section
@@ -207,6 +241,11 @@ export default function GamePage() {
                 }}
               >
                 <div style={{ fontWeight: 600 }}>{player.name}</div>
+                {state?.gameMode === "THREE_ROUND" && state.playerBanners[player.id] ? (
+                  <div style={{ marginTop: 6, display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, color: "#fff", background: state.playerBanners[player.id] === "GREEN" ? "#16a34a" : "#dc2626" }}>
+                    {state.playerBanners[player.id]} Banner
+                  </div>
+                ) : null}
                 <div style={{ fontSize: 12 }}>Score: {player.score}</div>
                 <div style={{ fontSize: 12 }}>Penalties: {player.penaltyPoints}</div>
                 <div style={{ fontSize: 12 }}>Position: {positionLabels[player.currentPosition]}</div>
@@ -241,7 +280,7 @@ export default function GamePage() {
         >
           <button
             onClick={() => socket.emit("turn:draw", { gameId })}
-            disabled={!state || !isMyTurn || state.phase === "LOBBY" || needsEndOfPeriodChoice}
+            disabled={!state || !isMyTurn || state.phase === "LOBBY" || needsEndOfPeriodChoice || pendingRound2Decision || pendingRoundStartPositionChoice}
             style={{
               width: cardWidth,
               borderRadius: 12,
@@ -270,20 +309,33 @@ export default function GamePage() {
         </div>
 
         {state?.phase === "LOBBY" ? (
-          <button
-            onClick={() => socket.emit("game:start", { gameId })}
-            disabled={!state || state.players.length < 2}
-            style={{
-              padding: "10px 18px",
-              borderRadius: 8,
-              border: "1px solid #111",
-              background: "#111",
-              color: "#fff",
-              fontWeight: 600,
-            }}
-          >
-            Start Game
-          </button>
+          <div style={{ display: "grid", gap: 10, justifyItems: "center" }}>
+            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+              Game mode
+              <select
+                value={state.gameMode}
+                onChange={(e) => socket.emit("game:setMode", { gameId, mode: e.target.value })}
+                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #111" }}
+              >
+                <option value="CLASSIC">Classic</option>
+                <option value="THREE_ROUND">3 two-minute rounds</option>
+              </select>
+            </label>
+            <button
+              onClick={() => socket.emit("game:start", { gameId })}
+              disabled={!state || state.players.length < 2}
+              style={{
+                padding: "10px 18px",
+                borderRadius: 8,
+                border: "1px solid #111",
+                background: "#111",
+                color: "#fff",
+                fontWeight: 600,
+              }}
+            >
+              Start Game
+            </button>
+          </div>
         ) : null}
       </section>
 
@@ -292,12 +344,17 @@ export default function GamePage() {
         {me ? (
           <>
             <div style={{ fontSize: 13 }}>Your position: {positionLabels[me.currentPosition]}</div>
+            {state?.gameMode === "THREE_ROUND" && playerId && state.playerBanners[playerId] ? (
+              <div style={{ display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, color: "#fff", background: state.playerBanners[playerId] === "GREEN" ? "#16a34a" : "#dc2626" }}>
+                {state.playerBanners[playerId]} Banner
+              </div>
+            ) : null}
             <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(clamp(124px, 12.5vw, 190px), 1fr))", width: "100%" }}>
             {me.hand.map((card) => (
               <button
                 key={card.id}
                 onClick={() => socket.emit("turn:playCard", { gameId, cardId: card.id })}
-                disabled={!isMyTurn || state?.phase === "LOBBY" || needsEndOfPeriodChoice}
+                disabled={!isMyTurn || state?.phase === "LOBBY" || needsEndOfPeriodChoice || pendingRound2Decision || pendingRoundStartPositionChoice}
                 style={{
                   width: "100%",
                   maxWidth: cardWidth,
@@ -324,6 +381,39 @@ export default function GamePage() {
         )}
       </section>
 
+      {pendingRound2Decision ? (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.58)", display: "grid", placeItems: "center", zIndex: 32, padding: 16 }}>
+          <div style={{ width: "min(92vw, 480px)", borderRadius: 14, border: "1px solid rgba(255,255,255,0.4)", background: "#0b1f3d", padding: 18, display: "grid", gap: 12 }}>
+            <h3 style={{ margin: 0 }}>Round 2 Coin Flip</h3>
+            <p style={{ margin: 0 }}>You won the coin flip. Choose whether to pick the starting position or defer the choice.</p>
+            <button onClick={() => socket.emit("round:coinWinnerDecision", { gameId, deferStartChoice: false })} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}>
+              I pick the starting position
+            </button>
+            <button onClick={() => socket.emit("round:coinWinnerDecision", { gameId, deferStartChoice: true })} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}>
+              Defer choice to opponent
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {pendingRoundStartPositionChoice ? (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.58)", display: "grid", placeItems: "center", zIndex: 33, padding: 16 }}>
+          <div style={{ width: "min(92vw, 480px)", borderRadius: 14, border: "1px solid rgba(255,255,255,0.4)", background: "#0b1f3d", padding: 18, display: "grid", gap: 12 }}>
+            <h3 style={{ margin: 0 }}>Choose Round Start Position</h3>
+            <p style={{ margin: 0 }}>Pick the starting position for this round.</p>
+            <button onClick={() => socket.emit("round:startPosition", { gameId, position: "TOP" })} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}>
+              Choose Top
+            </button>
+            <button onClick={() => socket.emit("round:startPosition", { gameId, position: "BOTTOM" })} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}>
+              Choose Bottom
+            </button>
+            <button onClick={() => socket.emit("round:startPosition", { gameId, position: "NEUTRAL" })} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}>
+              Choose Neutral
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {needsRematchAgreement ? (
         <div
           style={{
@@ -348,6 +438,8 @@ export default function GamePage() {
             }}
           >
             <h3 style={{ margin: 0 }}>Game Over</h3>
+            {state?.gameMode === "THREE_ROUND" ? <p style={{ margin: 0 }}>Round wins: {state.players.map((p) => `${p.name} ${state.roundWins[p.id] ?? 0}`).join(" • ")}</p> : null}
+            {state?.overtimeStubbed ? <p style={{ margin: 0 }}>Overtime is currently stubbed for tied games.</p> : null}
             <p style={{ margin: 0 }}>Do both players want a rematch?</p>
             <div style={{ display: "grid", gap: 6 }}>
               <div style={{ fontSize: 13, opacity: 0.9 }}>Rematch agreement</div>
@@ -377,7 +469,7 @@ export default function GamePage() {
                 Game options
                 <select disabled style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", background: "#f5f5f5" }}>
                   <option>Classic</option>
-                  <option>3 two minute rounds (stub)</option>
+                  <option>3 two minute rounds</option>
                 </select>
               </label>
 

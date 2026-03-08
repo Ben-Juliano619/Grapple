@@ -22,6 +22,19 @@ export type GameState = {
   playedPile: Card[];
   currentTurnIndex: number;
   phase: "LOBBY" | "FIND_START_NEUTRAL" | "PLAY" | "ENDED";
+  gameMode: "CLASSIC" | "THREE_ROUND";
+  playerBanners: Record<string, "GREEN" | "RED">;
+  currentRound: number;
+  roundWins: Record<string, number>;
+  roundEndsAt?: number;
+  roundStartChooserPlayerId?: string;
+  round2CoinFlipWinnerPlayerId?: string;
+  pendingRound2DecisionPlayerId?: string;
+  pendingRound2StartPositionChooserPlayerId?: string;
+  pendingRound3StartPositionChooserPlayerId?: string;
+  gameWinnerPlayerId?: string;
+  gameResult?: "WIN" | "DRAW";
+  overtimeStubbed?: boolean;
   pendingEndOfPeriodPlayerId?: string;
   rematchVotes: string[];
   start: () => void;
@@ -154,6 +167,7 @@ function loadCardTemplates(): CardTemplate[] {
 }
 
 const CARD_TEMPLATES = loadCardTemplates();
+const ROUND_DURATION_MS = 2 * 60 * 1000;
 
 export function createGameState(id: string): GameState {
   const state: GameState = {
@@ -164,38 +178,54 @@ export function createGameState(id: string): GameState {
     playedPile: [],
     currentTurnIndex: 0,
     phase: "LOBBY",
+    gameMode: "CLASSIC",
+    playerBanners: {},
+    currentRound: 0,
+    roundWins: {},
+    roundEndsAt: undefined,
+    roundStartChooserPlayerId: undefined,
+    round2CoinFlipWinnerPlayerId: undefined,
+    pendingRound2DecisionPlayerId: undefined,
+    pendingRound2StartPositionChooserPlayerId: undefined,
+    pendingRound3StartPositionChooserPlayerId: undefined,
+    gameWinnerPlayerId: undefined,
+    gameResult: undefined,
+    overtimeStubbed: false,
     pendingEndOfPeriodPlayerId: undefined,
     rematchVotes: [],
     start() {
-      const deck = shuffle(buildDeck());
-      state.drawPile = deck;
-      state.discardPile = [];
-      state.playedPile = [];
-      state.currentTurnIndex = 0;
-      state.phase = "FIND_START_NEUTRAL";
-      state.pendingEndOfPeriodPlayerId = undefined;
       state.rematchVotes = [];
+      state.pendingEndOfPeriodPlayerId = undefined;
+      state.gameWinnerPlayerId = undefined;
+      state.gameResult = undefined;
+      state.overtimeStubbed = false;
+      state.roundWins = {};
+      state.roundStartChooserPlayerId = undefined;
+      state.round2CoinFlipWinnerPlayerId = undefined;
+      state.pendingRound2DecisionPlayerId = undefined;
+      state.pendingRound2StartPositionChooserPlayerId = undefined;
+      state.pendingRound3StartPositionChooserPlayerId = undefined;
 
-      for (const player of state.players) {
-        player.hand = [];
-        for (let i = 0; i < 5; i += 1) {
-          player.hand.push(drawOne(state));
-        }
-        player.score = 0;
-        player.penaltyPoints = 0;
-        player.currentPosition = "NEUTRAL";
-        player.previousPosition = undefined;
-        player.canCounterTakedown = false;
+      assignBanners(state);
+      if (state.gameMode === "THREE_ROUND") {
+        state.currentRound = 1;
+      } else {
+        state.currentRound = 0;
       }
+
+      startFreshRound(state, state.currentRound === 0 ? undefined : "FIND_START_NEUTRAL");
     },
   };
   return state;
 }
 
 type Action =
+  | { type: "SET_MODE"; mode: "CLASSIC" | "THREE_ROUND" }
   | { type: "PLAY_CARD"; playerId: string; cardId: string }
   | { type: "DRAW"; playerId: string }
   | { type: "END_OF_PERIOD_POSITION"; playerId: string; position: Position }
+  | { type: "ROUND2_DECISION"; playerId: string; deferStartChoice: boolean }
+  | { type: "ROUND_START_POSITION"; playerId: string; position: Position }
   | { type: "REQUEST_REMATCH"; playerId: string };
 
 export function isPlayerInGame(state: GameState, playerId: string) {
@@ -203,6 +233,12 @@ export function isPlayerInGame(state: GameState, playerId: string) {
 }
 
 export function applyAction(state: GameState, action: Action): { ok: true } | { ok: false; error: string } {
+  if (action.type === "SET_MODE") {
+    if (state.phase !== "LOBBY") return { ok: false, error: "Mode can only be changed in the lobby" };
+    state.gameMode = action.mode;
+    return { ok: true };
+  }
+
   if (action.type === "REQUEST_REMATCH") {
     if (state.phase !== "ENDED") return { ok: false, error: "Rematch is only available after game end" };
     if (!isPlayerInGame(state, action.playerId)) return { ok: false, error: "Not in this game" };
@@ -221,6 +257,39 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
 
   if (state.phase === "LOBBY") return { ok: false, error: "Game not started" };
   if (state.phase === "ENDED") return { ok: false, error: "Game already ended" };
+
+  if (state.gameMode === "THREE_ROUND" && isRoundTimerExpired(state)) {
+    finishRound(state, null);
+    return { ok: true };
+  }
+
+  if (action.type === "ROUND2_DECISION") {
+    if (state.pendingRound2DecisionPlayerId !== action.playerId) {
+      return { ok: false, error: "You are not the coin flip winner" };
+    }
+
+    const otherPlayer = state.players.find((player) => player.id !== action.playerId);
+    if (!otherPlayer) return { ok: false, error: "Round two requires exactly two players" };
+
+    state.pendingRound2DecisionPlayerId = undefined;
+    state.pendingRound2StartPositionChooserPlayerId = action.deferStartChoice ? otherPlayer.id : action.playerId;
+    state.roundStartChooserPlayerId = state.pendingRound2StartPositionChooserPlayerId;
+    return { ok: true };
+  }
+
+  if (action.type === "ROUND_START_POSITION") {
+    const pendingChooser = state.pendingRound2StartPositionChooserPlayerId ?? state.pendingRound3StartPositionChooserPlayerId;
+    if (!pendingChooser || pendingChooser !== action.playerId) {
+      return { ok: false, error: "No round start position choice is pending for you" };
+    }
+
+    applyEndOfPeriodPositionChoice(state, action.playerId, action.position);
+    state.pendingRound2StartPositionChooserPlayerId = undefined;
+    state.pendingRound3StartPositionChooserPlayerId = undefined;
+    state.roundEndsAt = Date.now() + ROUND_DURATION_MS;
+    state.phase = "PLAY";
+    return { ok: true };
+  }
 
   const currentPlayer = state.players[state.currentTurnIndex];
   if (currentPlayer.id !== action.playerId) return { ok: false, error: "Not your turn" };
@@ -241,13 +310,11 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
   }
 
   if (action.type === "DRAW") {
-    // In your rules: draw happens when you cannot play (we enforce lightly in MVP)
     currentPlayer.hand.push(drawOne(state));
     endTurn(state);
     return { ok: true };
   }
 
-  // PLAY_CARD
   const cardIndex = currentPlayer.hand.findIndex((c) => c.id === action.cardId);
   if (cardIndex === -1) return { ok: false, error: "Card not in your hand" };
 
@@ -256,30 +323,171 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
   const legal = isCardLegal(state, card);
   if (!legal.ok) return legal;
 
-  // remove from hand, put on discard
   currentPlayer.hand.splice(cardIndex, 1);
   state.discardPile.push(card);
   state.playedPile.push(card);
 
-  // win condition: pin
-  if (isPinningCard(card)) {
-    state.phase = "ENDED";
-    return { ok: true };
+  if (state.gameMode === "THREE_ROUND") {
+    if (isPinningCard(card)) {
+      finishRound(state, currentPlayer.id);
+      return { ok: true };
+    }
+
+    if (card.kind === "END_OF_PERIOD") {
+      finishRound(state, null);
+      return { ok: true };
+    }
+  } else {
+    if (isPinningCard(card) || currentPlayer.hand.length === 0) {
+      state.phase = "ENDED";
+      return { ok: true };
+    }
   }
 
-  // win condition: used all cards
-  if (currentPlayer.hand.length === 0) {
-    state.phase = "ENDED";
-    return { ok: true };
-  }
-
-  // apply effects
   const shouldEndTurn = applyCardEffects(state, card, currentPlayer.id);
 
   if (shouldEndTurn) {
     endTurn(state);
   }
   return { ok: true };
+}
+
+export function tickRoundTimer(state: GameState): boolean {
+  if (state.gameMode !== "THREE_ROUND") return false;
+  if (state.phase === "ENDED" || state.phase === "LOBBY") return false;
+  if (!isRoundTimerExpired(state)) return false;
+  finishRound(state, null);
+  return true;
+}
+
+function assignBanners(state: GameState) {
+  state.playerBanners = {};
+  const [first, second] = state.players;
+  if (!first || !second) return;
+  state.playerBanners[first.id] = "GREEN";
+  state.playerBanners[second.id] = "RED";
+}
+
+function startFreshRound(state: GameState, phaseOverride?: GameState["phase"]) {
+  const deck = shuffle(buildDeck());
+  state.drawPile = deck;
+  state.discardPile = [];
+  state.playedPile = [];
+  state.currentTurnIndex = 0;
+  state.pendingEndOfPeriodPlayerId = undefined;
+
+  for (const player of state.players) {
+    player.hand = [];
+    for (let i = 0; i < 5; i += 1) {
+      player.hand.push(drawOne(state));
+    }
+    player.score = 0;
+    player.penaltyPoints = 0;
+    player.currentPosition = "NEUTRAL";
+    player.previousPosition = undefined;
+    player.canCounterTakedown = false;
+    state.roundWins[player.id] = state.roundWins[player.id] ?? 0;
+  }
+
+  if (state.gameMode === "THREE_ROUND") {
+    state.phase = phaseOverride ?? "PLAY";
+    state.roundEndsAt = phaseOverride === "FIND_START_NEUTRAL" ? Date.now() + ROUND_DURATION_MS : undefined;
+  } else {
+    state.phase = "FIND_START_NEUTRAL";
+    state.roundEndsAt = undefined;
+  }
+}
+
+function isRoundTimerExpired(state: GameState): boolean {
+  return Boolean(state.roundEndsAt && Date.now() >= state.roundEndsAt);
+}
+
+function finishRound(state: GameState, winnerPlayerId: string | null) {
+  if (winnerPlayerId) {
+    state.roundWins[winnerPlayerId] = (state.roundWins[winnerPlayerId] ?? 0) + 1;
+  }
+
+  state.roundEndsAt = undefined;
+  state.pendingEndOfPeriodPlayerId = undefined;
+
+  if (state.currentRound === 1) {
+    prepareRoundTwo(state);
+    return;
+  }
+
+  if (state.currentRound === 2) {
+    if (winnerPlayerId && (state.roundWins[winnerPlayerId] ?? 0) >= 2) {
+      endThreeRoundGame(state, winnerPlayerId);
+      return;
+    }
+
+    prepareRoundThree(state);
+    return;
+  }
+
+  if (state.currentRound === 3) {
+    const [first, second] = state.players;
+    if (!first || !second) {
+      endThreeRoundGame(state, null);
+      return;
+    }
+
+    const firstWins = state.roundWins[first.id] ?? 0;
+    const secondWins = state.roundWins[second.id] ?? 0;
+
+    if (firstWins > secondWins) {
+      endThreeRoundGame(state, first.id);
+      return;
+    }
+    if (secondWins > firstWins) {
+      endThreeRoundGame(state, second.id);
+      return;
+    }
+
+    endThreeRoundGame(state, null);
+  }
+}
+
+function prepareRoundTwo(state: GameState) {
+  state.currentRound = 2;
+  startFreshRound(state);
+
+  const [first, second] = state.players;
+  if (!first || !second) {
+    endThreeRoundGame(state, null);
+    return;
+  }
+
+  const winner = Math.random() < 0.5 ? first : second;
+  state.round2CoinFlipWinnerPlayerId = winner.id;
+  state.pendingRound2DecisionPlayerId = winner.id;
+  state.phase = "PLAY";
+}
+
+function prepareRoundThree(state: GameState) {
+  state.currentRound = 3;
+  startFreshRound(state);
+
+  if (!state.roundStartChooserPlayerId) {
+    endThreeRoundGame(state, null);
+    return;
+  }
+
+  const otherPlayer = state.players.find((player) => player.id !== state.roundStartChooserPlayerId);
+  if (!otherPlayer) {
+    endThreeRoundGame(state, null);
+    return;
+  }
+
+  state.pendingRound3StartPositionChooserPlayerId = otherPlayer.id;
+  state.phase = "PLAY";
+}
+
+function endThreeRoundGame(state: GameState, winnerPlayerId: string | null) {
+  state.phase = "ENDED";
+  state.gameWinnerPlayerId = winnerPlayerId ?? undefined;
+  state.gameResult = winnerPlayerId ? "WIN" : "DRAW";
+  state.overtimeStubbed = !winnerPlayerId;
 }
 
 function isCardLegal(state: GameState, card: Card): { ok: true } | { ok: false; error: string } {
