@@ -589,6 +589,13 @@ function applyCardEffects(state: GameState, card: Card, currentPlayerId: string)
       return true;
 
     case "BOTTOM":
+      if (isBottomStandUp(card))
+      {
+        for (const player of state.players) {
+          player.currentPosition = "NEUTRAL";
+        }
+        return true;
+      }
       currentPlayer.currentPosition = card.meta?.doesNotChangePosition ? currentPlayer.currentPosition : "BOTTOM";
       return true;
 
@@ -670,7 +677,15 @@ function isNeutralTakedown(card: Card): boolean {
 
   const imageFile = card.imageFile?.toLowerCase() ?? "";
   const name = card.name.toLowerCase();
-  return imageFile.includes("takedown") || name.includes("takedown");
+  return imageFile.includes("takedown") || name.includes("takedown") && !imageFile.includes("attempted");
+}
+
+function isBottomStandUp(card: Card): boolean {
+  if (card.kind !== "BOTTOM") return false;
+
+  const imageFile = card.imageFile?.toLowerCase() ?? "";
+  const name = card.name.toLowerCase();
+  return imageFile.includes("stand_up");
 }
 
 function endTurn(state: GameState) {

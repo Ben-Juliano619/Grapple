@@ -142,7 +142,7 @@ export default function GamePage() {
     >
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h2 style={{ margin: 0 }}>Grapple Notes</h2>
+          <h2 style={{ margin: 0 }}>Grapple</h2>
           <p style={{ margin: "4px 0 0" }}>Game ID: {gameId}</p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
