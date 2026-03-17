@@ -493,7 +493,8 @@ function endThreeRoundGame(state: GameState, winnerPlayerId: string | null) {
 function isCardLegal(state: GameState, card: Card): { ok: true } | { ok: false; error: string } {
   // Phase: find neutral
   if (state.phase === "FIND_START_NEUTRAL") {
-    if (card.kind !== "NEUTRAL" && card.kind !== "ATTEMPT_TAKEDOWN") {
+    const isNeutralPin = card.kind === "PIN" && getPinRequiredPosition(card) === "NEUTRAL";
+    if (card.kind !== "NEUTRAL" && card.kind !== "ATTEMPT_TAKEDOWN" && !isNeutralPin) {
       return { ok: false, error: "Must play a Neutral card to start (or draw)" };
     }
     return { ok: true };

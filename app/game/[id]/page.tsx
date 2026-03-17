@@ -122,6 +122,16 @@ export default function GamePage() {
   const roundTimerLabel =
     roundSecondsLeft === null ? "--:--" : `${Math.floor(roundSecondsLeft / 60).toString().padStart(2, "0")}:${(roundSecondsLeft % 60).toString().padStart(2, "0")}`;
 
+
+  const getBannerLabel = (displayPlayerId: string) => {
+    if (!state?.playerBanners[displayPlayerId]) return null;
+    const banner = `${state.playerBanners[displayPlayerId]} Banner`;
+
+    if (state.phase !== "ENDED" || state.gameResult !== "WIN") return banner;
+    if (state.gameWinnerPlayerId === displayPlayerId) return `${banner} - Winner`;
+    return `${banner} - Lose`;
+  };
+
   function chooseEndOfPeriodPosition(position: Position) {
     socket.emit("turn:endOfPeriodPosition", { gameId, position });
   }
@@ -243,7 +253,7 @@ export default function GamePage() {
                 <div style={{ fontWeight: 600 }}>{player.name}</div>
                 {state?.gameMode === "THREE_ROUND" && state.playerBanners[player.id] ? (
                   <div style={{ marginTop: 6, display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, color: "#fff", background: state.playerBanners[player.id] === "GREEN" ? "#16a34a" : "#dc2626" }}>
-                    {state.playerBanners[player.id]} Banner
+                    {getBannerLabel(player.id)}
                   </div>
                 ) : null}
                 <div style={{ fontSize: 12 }}>Score: {player.score}</div>
@@ -346,7 +356,7 @@ export default function GamePage() {
             <div style={{ fontSize: 13 }}>Your position: {positionLabels[me.currentPosition]}</div>
             {state?.gameMode === "THREE_ROUND" && playerId && state.playerBanners[playerId] ? (
               <div style={{ display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, color: "#fff", background: state.playerBanners[playerId] === "GREEN" ? "#16a34a" : "#dc2626" }}>
-                {state.playerBanners[playerId]} Banner
+                {getBannerLabel(playerId)}
               </div>
             ) : null}
             <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(clamp(124px, 12.5vw, 190px), 1fr))", width: "100%" }}>
