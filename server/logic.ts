@@ -310,7 +310,12 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
   }
 
   if (action.type === "DRAW") {
-    currentPlayer.hand.push(drawOne(state));
+    const drawnCard = drawOne(state);
+    if (!drawnCard) {
+      return { ok: false, error: "No more cards available" };
+    }
+
+    currentPlayer.hand.push(drawnCard);
     endTurn(state);
     return { ok: true };
   }
@@ -701,15 +706,13 @@ function nextPlayer(state: GameState) {
   return state.players[(state.currentTurnIndex + 1) % state.players.length];
 }
 
-function drawOne(state: GameState): Card {
+function drawOne(state: GameState): Card | undefined {
   if (state.drawPile.length === 0) {
     const reshuffle = shuffle(state.playedPile);
     state.drawPile = reshuffle;
     state.playedPile = [];
   }
-  const c = state.drawPile.pop();
-  if (!c) throw new Error("No cards available");
-  return c;
+  return state.drawPile.pop();
 }
 
 function isPinningCard(card: Card): boolean {
