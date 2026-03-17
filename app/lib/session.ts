@@ -51,3 +51,9 @@ export function getOrCreateSessionId() {
   writeCookie(COOKIE_NAME, generated);
   return generated;
 }
+
+export function rotateSessionId() {
+  const generated = createSessionId();
+  writeCookie(COOKIE_NAME, generated);
+  return generated;
+}

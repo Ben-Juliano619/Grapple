@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { io } from "socket.io-client";
-import { getOrCreateSessionId } from "./lib/session";
+import { getOrCreateSessionId, rotateSessionId } from "./lib/session";
 
 export default function Home() {
   const router = useRouter();
@@ -40,9 +40,10 @@ export default function Home() {
     window.localStorage.setItem("grapple.playerName", trimmedPlayerName);
     window.localStorage.setItem("grapple.gameMode", gameMode);
     setErrorMessage("");
+    const sessionId = rotateSessionId();
     socket.emit(
       "game:create",
-      { mode: gameMode },
+      { mode: gameMode, sessionId },
       (response: { ok: boolean; gameId?: string; error?: string }) => {
         if (response.ok && response.gameId) {
           router.push(`/game/${response.gameId}`);
@@ -69,7 +70,7 @@ export default function Home() {
     }
 
     setErrorMessage("");
-    const sessionId = getOrCreateSessionId();
+    const sessionId = rotateSessionId();
     socket.emit(
       "game:validateJoin",
       { gameId: trimmedCode, playerName: trimmedPlayerName, sessionId },
