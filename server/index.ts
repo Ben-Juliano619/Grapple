@@ -265,6 +265,7 @@ io.on("connection", (socket) => {
     state.pendingRound2DecisionPlayerId = undefined;
     state.pendingRound2StartPositionChooserPlayerId = undefined;
     state.pendingRound3StartPositionChooserPlayerId = undefined;
+    state.isOvertime = false;
     state.rematchVotes = [];
     state.roundEndsAt = undefined;
     io.to(gameId).emit("game:state", state);
