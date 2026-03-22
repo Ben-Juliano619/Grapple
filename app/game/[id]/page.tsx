@@ -63,6 +63,7 @@ export default function GamePage() {
   const [state, setState] = useState<GameState | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isErrorFading, setIsErrorFading] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [rulesIndex, setRulesIndex] = useState(0);
   const [now, setNow] = useState(() => Date.now());
@@ -108,6 +109,23 @@ export default function GamePage() {
     setHasAcknowledgedMatchResult(false);
   }, [state?.phase]);
 
+  useEffect(() => {
+    if (!error) return;
+
+    setIsErrorFading(false);
+
+    const fadeTimer = window.setTimeout(() => setIsErrorFading(true), 7000);
+    const clearTimer = window.setTimeout(() => {
+      setError(null);
+      setIsErrorFading(false);
+    }, 7500);
+
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(clearTimer);
+    };
+  }, [error]);
+
   const me = state?.players.find((player) => player.id === playerId) ?? null;
   const opponents = state?.players.filter((player) => player.id !== playerId) ?? [];
   const currentPlayer = state?.players[state.currentTurnIndex];
@@ -149,23 +167,81 @@ export default function GamePage() {
   return (
     <div
       style={{
-        padding: "clamp(12px, 2.4vw, 28px)",
+        padding: "2px clamp(8px, 1.6vw, 16px) clamp(8px, 1.6vw, 16px)",
         fontFamily: "system-ui",
         display: "grid",
-        gap: 20,
+        gap: 4,
+        alignContent: "start",
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at center, rgba(196, 38, 38, 0.5) 0%, rgba(196, 38, 38, 0.5) 18%, transparent 19%, transparent 34%, rgba(18, 73, 148, 0.72) 35%, rgba(18, 73, 148, 0.72) 47%, transparent 48%), linear-gradient(180deg, #2d5c96 0%, #1f4170 100%)",
+          "radial-gradient(circle at 50% 44%, rgba(196, 38, 38, 0.5) 0%, rgba(196, 38, 38, 0.5) 18%, transparent 19%, transparent 34%, rgba(18, 73, 148, 0.72) 35%, rgba(18, 73, 148, 0.72) 47%, transparent 48%), linear-gradient(180deg, #2d5c96 0%, #1f4170 100%)",
         backgroundAttachment: "fixed",
         color: "#f9fbff",
       }}
     >
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <div>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, position: "relative" }}>
+        <div style={{ display: "grid", gap: 0, alignContent: "start" }}>
           <h2 style={{ margin: 0 }}>Grapple</h2>
-          <p style={{ margin: "4px 0 0" }}>Game ID: {gameId}</p>
+          <p style={{ margin: 0 }}>Game ID: {gameId}</p>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        {state?.gameMode === "THREE_ROUND" || error ? (
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: 0,
+              transform: "translateX(-50%)",
+              display: "grid",
+              gap: 4,
+              justifyItems: "center",
+            }}
+          >
+            {state?.gameMode === "THREE_ROUND" ? (
+              <div
+                style={{
+                  background: "rgba(0,0,0,0.35)",
+                  border: "1px solid rgba(255,255,255,0.4)",
+                  padding: "4px 10px",
+                  color: "#fff",
+                  borderRadius: 8,
+                  width: "max-content",
+                  maxWidth: "min(100%, 560px)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  minHeight: 0,
+                }}
+              >
+                {state.isOvertime ? "Overtime" : `Round ${state.currentRound}`} {state.gameResult === "DRAW" ? "- Draw" : ""}
+              </div>
+            ) : null}
+            {error ? (
+              <div
+                style={{
+                  background: "#fee",
+                  border: "1px solid #f5c2c2",
+                  padding: "4px 10px",
+                  color: "#5f0000",
+                  borderRadius: 8,
+                  width: "max-content",
+                  maxWidth: "min(100%, 560px)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  minHeight: 0,
+                  opacity: isErrorFading ? 0 : 1,
+                  transition: "opacity 500ms ease",
+                }}
+              >
+                {error}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        <div style={{ textAlign: "right", display: "grid", gap: 2, justifyItems: "end" }}>
+          <div>
+            <div>Position: {me ? positionLabels[me.currentPosition] : "—"}</div>
+            <div>{currentPlayer ? `Turn: ${currentPlayer.name}` : "Waiting for players..."}</div>
+            {state?.gameMode === "THREE_ROUND" ? <div>Round Timer: {roundTimerLabel}</div> : null}
+          </div>
           <button
             onClick={() => {
               setShowRules((value) => {
@@ -183,24 +259,13 @@ export default function GamePage() {
               background: "#fff",
               fontWeight: 600,
               cursor: "pointer",
+              marginTop: 2,
             }}
           >
             {showRules ? "Hide Rules" : "Rules"}
           </button>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontWeight: 600 }}>{state ? `Phase: ${state.phase}` : "Connecting..."}</div>
-            <div>Position: {me ? positionLabels[me.currentPosition] : "—"}</div>
-            <div>{currentPlayer ? `Turn: ${currentPlayer.name}` : "Waiting for players..."}</div>
-            {state?.gameMode === "THREE_ROUND" ? <div>Round Timer: {roundTimerLabel}</div> : null}
-          </div>
         </div>
       </header>
-
-      {state?.gameMode === "THREE_ROUND" ? (
-        <div style={{ background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 10, padding: "8px 12px", fontWeight: 700 }}>
-          {state.isOvertime ? "Overtime" : `Round ${state.currentRound}`} {state.gameResult === "DRAW" ? "- Draw" : ""}
-        </div>
-      ) : null}
 
       {showRules ? (
         <section
@@ -241,11 +306,9 @@ export default function GamePage() {
         </section>
       ) : null}
 
-      {error ? <div style={{ background: "#fee", border: "1px solid #f5c2c2", padding: 12, color: "#5f0000" }}>{error}</div> : null}
-
-      <section style={{ display: "grid", gap: 12 }}>
+      <section style={{ display: "grid", gap: 4 }}>
         <h3 style={{ margin: 0 }}>Opponents</h3>
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
           {opponents.length === 0 ? (
             <div>Waiting for opponents to join.</div>
           ) : (
@@ -255,9 +318,11 @@ export default function GamePage() {
                 style={{
                   border: "1px solid rgba(255,255,255,0.35)",
                   borderRadius: 12,
-                  padding: 12,
+                  padding: "10px 12px 8px",
                   minWidth: 180,
                   background: "rgba(7, 24, 49, 0.65)",
+                  display: "grid",
+                  gap: 4,
                 }}
               >
                 <div style={{ fontWeight: 600 }}>{player.name}</div>
@@ -266,10 +331,9 @@ export default function GamePage() {
                     {getBannerLabel(player.id)}
                   </div>
                 ) : null}
-                <div style={{ fontSize: 12 }}>Score: {player.score}</div>
                 <div style={{ fontSize: 12 }}>Penalties: {player.penaltyPoints}</div>
                 <div style={{ fontSize: 12 }}>Position: {positionLabels[player.currentPosition]}</div>
-                <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
+                <div style={{ marginTop: 6, display: "flex", gap: 6 }}>
                   {Array.from({ length: player.hand.length }).map((_, index) => (
                     <Image
                       key={index}
@@ -287,7 +351,7 @@ export default function GamePage() {
         </div>
       </section>
 
-      <section style={{ display: "grid", placeItems: "center", gap: 12 }}>
+      <section style={{ display: "grid", placeItems: "center", gap: 4, marginTop: "clamp(36px, 11vh, 150px)" }}>
         <div
           style={{
             display: "flex",
@@ -359,7 +423,7 @@ export default function GamePage() {
         ) : null}
       </section>
 
-      <section style={{ display: "grid", gap: 12 }}>
+      <section style={{ display: "grid", gap: 4 }}>
         <h3 style={{ margin: 0 }}>Your Hand {me ? `(${me.hand.length})` : ""}</h3>
         {me ? (
           <>
