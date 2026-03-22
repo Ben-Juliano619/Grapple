@@ -347,7 +347,7 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
       if (state.gameMode === "THREE_ROUND") {
         endThreeRoundGame(state, currentPlayer.id);
       } else {
-        state.phase = "ENDED";
+        endClassicGame(state, currentPlayer.id);
       }
       return { ok: true };
     }
@@ -503,6 +503,12 @@ function endThreeRoundGame(state: GameState, winnerPlayerId: string | null) {
   state.gameWinnerPlayerId = winnerPlayerId ?? undefined;
   state.gameResult = winnerPlayerId ? "WIN" : "DRAW";
   state.isOvertime = false;
+}
+
+function endClassicGame(state: GameState, winnerPlayerId: string) {
+  state.phase = "ENDED";
+  state.gameWinnerPlayerId = winnerPlayerId;
+  state.gameResult = "WIN";
 }
 
 function isCardLegal(state: GameState, card: Card): { ok: true } | { ok: false; error: string } {
