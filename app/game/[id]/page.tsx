@@ -291,7 +291,7 @@ export default function GamePage() {
 
       <section style={{ display: "grid", gap: 12 }}>
         <h3 style={{ margin: 0 }}>Opponents</h3>
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
           {opponents.length === 0 ? (
             <div>Waiting for opponents to join.</div>
           ) : (
@@ -301,9 +301,11 @@ export default function GamePage() {
                 style={{
                   border: "1px solid rgba(255,255,255,0.35)",
                   borderRadius: 12,
-                  padding: 12,
+                  padding: "10px 12px 8px",
                   minWidth: 180,
                   background: "rgba(7, 24, 49, 0.65)",
+                  display: "grid",
+                  gap: 4,
                 }}
               >
                 <div style={{ fontWeight: 600 }}>{player.name}</div>
@@ -312,10 +314,9 @@ export default function GamePage() {
                     {getBannerLabel(player.id)}
                   </div>
                 ) : null}
-                <div style={{ fontSize: 12 }}>Score: {player.score}</div>
                 <div style={{ fontSize: 12 }}>Penalties: {player.penaltyPoints}</div>
                 <div style={{ fontSize: 12 }}>Position: {positionLabels[player.currentPosition]}</div>
-                <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
+                <div style={{ marginTop: 6, display: "flex", gap: 6 }}>
                   {Array.from({ length: player.hand.length }).map((_, index) => (
                     <Image
                       key={index}
