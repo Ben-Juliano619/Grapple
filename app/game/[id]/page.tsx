@@ -264,11 +264,11 @@ export default function GamePage() {
           style={{
             background: "#fee",
             border: "1px solid #f5c2c2",
-            padding: "7px 10px",
+            padding: "8px 10px",
             color: "#5f0000",
-            fontSize: 14,
-            lineHeight: 1.3,
             borderRadius: 8,
+            width: "fit-content",
+            maxWidth: "100%",
             opacity: isErrorFading ? 0 : 1,
             transition: "opacity 500ms ease",
           }}
