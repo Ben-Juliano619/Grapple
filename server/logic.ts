@@ -34,7 +34,7 @@ export type GameState = {
   pendingRound3StartPositionChooserPlayerId?: string;
   gameWinnerPlayerId?: string;
   gameResult?: "WIN" | "DRAW";
-  overtimeStubbed?: boolean;
+  isOvertime: boolean;
   pendingEndOfPeriodPlayerId?: string;
   rematchVotes: string[];
   start: () => void;
@@ -190,7 +190,7 @@ export function createGameState(id: string): GameState {
     pendingRound3StartPositionChooserPlayerId: undefined,
     gameWinnerPlayerId: undefined,
     gameResult: undefined,
-    overtimeStubbed: false,
+    isOvertime: false,
     pendingEndOfPeriodPlayerId: undefined,
     rematchVotes: [],
     start() {
@@ -198,7 +198,7 @@ export function createGameState(id: string): GameState {
       state.pendingEndOfPeriodPlayerId = undefined;
       state.gameWinnerPlayerId = undefined;
       state.gameResult = undefined;
-      state.overtimeStubbed = false;
+      state.isOvertime = false;
       state.roundWins = {};
       state.roundStartChooserPlayerId = undefined;
       state.round2CoinFlipWinnerPlayerId = undefined;
@@ -258,7 +258,7 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
   if (state.phase === "LOBBY") return { ok: false, error: "Game not started" };
   if (state.phase === "ENDED") return { ok: false, error: "Game already ended" };
 
-  if (state.gameMode === "THREE_ROUND" && isRoundTimerExpired(state)) {
+  if (state.gameMode === "THREE_ROUND" && !state.isOvertime && isRoundTimerExpired(state)) {
     finishRound(state, null);
     return { ok: true };
   }
@@ -332,7 +332,7 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
   state.discardPile.push(card);
   state.playedPile.push(card);
 
-  if (state.gameMode === "THREE_ROUND") {
+  if (state.gameMode === "THREE_ROUND" && !state.isOvertime) {
     if (isPinningCard(card)) {
       finishRound(state, currentPlayer.id);
       return { ok: true };
@@ -344,7 +344,11 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
     }
   } else {
     if (isPinningCard(card) || currentPlayer.hand.length === 0) {
-      state.phase = "ENDED";
+      if (state.gameMode === "THREE_ROUND") {
+        endThreeRoundGame(state, currentPlayer.id);
+      } else {
+        state.phase = "ENDED";
+      }
       return { ok: true };
     }
   }
@@ -449,8 +453,14 @@ function finishRound(state: GameState, winnerPlayerId: string | null) {
       return;
     }
 
-    endThreeRoundGame(state, null);
+    startOvertime(state);
   }
+}
+
+function startOvertime(state: GameState) {
+  state.currentRound = 4;
+  state.isOvertime = true;
+  startFreshRound(state, "PLAY");
 }
 
 function prepareRoundTwo(state: GameState) {
@@ -492,7 +502,7 @@ function endThreeRoundGame(state: GameState, winnerPlayerId: string | null) {
   state.phase = "ENDED";
   state.gameWinnerPlayerId = winnerPlayerId ?? undefined;
   state.gameResult = winnerPlayerId ? "WIN" : "DRAW";
-  state.overtimeStubbed = !winnerPlayerId;
+  state.isOvertime = false;
 }
 
 function isCardLegal(state: GameState, card: Card): { ok: true } | { ok: false; error: string } {

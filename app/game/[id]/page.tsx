@@ -35,7 +35,7 @@ type GameState = {
   pendingRound3StartPositionChooserPlayerId?: string;
   gameWinnerPlayerId?: string;
   gameResult?: "WIN" | "DRAW";
-  overtimeStubbed?: boolean;
+  isOvertime: boolean;
   pendingEndOfPeriodPlayerId?: string;
   rematchVotes: string[];
 };
@@ -120,7 +120,7 @@ export default function GamePage() {
   );
   const roundSecondsLeft = state?.roundEndsAt ? Math.max(0, Math.ceil((state.roundEndsAt - now) / 1000)) : null;
   const roundTimerLabel =
-    roundSecondsLeft === null ? "--:--" : `${Math.floor(roundSecondsLeft / 60).toString().padStart(2, "0")}:${(roundSecondsLeft % 60).toString().padStart(2, "0")}`;
+    state?.isOvertime ? "No time limit (Overtime)" : roundSecondsLeft === null ? "--:--" : `${Math.floor(roundSecondsLeft / 60).toString().padStart(2, "0")}:${(roundSecondsLeft % 60).toString().padStart(2, "0")}`;
 
 
   const getBannerLabel = (displayPlayerId: string) => {
@@ -188,7 +188,7 @@ export default function GamePage() {
 
       {state?.gameMode === "THREE_ROUND" ? (
         <div style={{ background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 10, padding: "8px 12px", fontWeight: 700 }}>
-          Round {state.currentRound} {state.gameResult === "DRAW" ? "- Draw" : ""}
+          {state.isOvertime ? "Overtime" : `Round ${state.currentRound}`} {state.gameResult === "DRAW" ? "- Draw" : ""}
         </div>
       ) : null}
 
@@ -449,7 +449,7 @@ export default function GamePage() {
           >
             <h3 style={{ margin: 0 }}>Game Over</h3>
             {state?.gameMode === "THREE_ROUND" ? <p style={{ margin: 0 }}>Round wins: {state.players.map((p) => `${p.name} ${state.roundWins[p.id] ?? 0}`).join(" • ")}</p> : null}
-            {state?.overtimeStubbed ? <p style={{ margin: 0 }}>Overtime is currently stubbed for tied games.</p> : null}
+            {state?.isOvertime ? <p style={{ margin: 0 }}>Overtime active: first pin or player to use all cards wins the game.</p> : null}
             <p style={{ margin: 0 }}>Do both players want a rematch?</p>
             <div style={{ display: "grid", gap: 6 }}>
               <div style={{ fontSize: 13, opacity: 0.9 }}>Rematch agreement</div>
