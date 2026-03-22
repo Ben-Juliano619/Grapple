@@ -66,6 +66,7 @@ export default function GamePage() {
   const [showRules, setShowRules] = useState(false);
   const [rulesIndex, setRulesIndex] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+  const [hasAcknowledgedMatchResult, setHasAcknowledgedMatchResult] = useState(false);
 
   useEffect(() => {
     const playerName = window.localStorage.getItem("grapple.playerName") ?? "Player";
@@ -102,6 +103,11 @@ export default function GamePage() {
     return () => window.clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    if (state?.phase === "ENDED") return;
+    setHasAcknowledgedMatchResult(false);
+  }, [state?.phase]);
+
   const me = state?.players.find((player) => player.id === playerId) ?? null;
   const opponents = state?.players.filter((player) => player.id !== playerId) ?? [];
   const currentPlayer = state?.players[state.currentTurnIndex];
@@ -112,6 +118,10 @@ export default function GamePage() {
   const rematchVotesCount = state?.rematchVotes.length ?? 0;
   const hasVotedForRematch = Boolean(playerId && state?.rematchVotes.includes(playerId));
   const needsRematchAgreement = state?.phase === "ENDED";
+  const hasMatchWinner = Boolean(state?.gameResult === "WIN" && state?.gameWinnerPlayerId);
+  const isMatchWinner = Boolean(hasMatchWinner && playerId && state?.gameWinnerPlayerId === playerId);
+  const matchResultLabel = !hasMatchWinner ? "Match Draw" : isMatchWinner ? "Match Won" : "Match Lost";
+  const needsMatchResultPopup = needsRematchAgreement && !hasAcknowledgedMatchResult;
   const pendingRound2Decision = Boolean(state && playerId && state.pendingRound2DecisionPlayerId === playerId);
   const pendingRoundStartPositionChoice = Boolean(
     state &&
@@ -424,7 +434,41 @@ export default function GamePage() {
         </div>
       ) : null}
 
-      {needsRematchAgreement ? (
+      {needsMatchResultPopup ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.58)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 36,
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: "min(92vw, 420px)",
+              borderRadius: 14,
+              border: "1px solid rgba(255,255,255,0.4)",
+              background: "#0b1f3d",
+              padding: 18,
+              display: "grid",
+              gap: 12,
+            }}
+          >
+            <h3 style={{ margin: 0 }}>{matchResultLabel}</h3>
+            <button
+              onClick={() => setHasAcknowledgedMatchResult(true)}
+              style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
+            >
+              Okay
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {needsRematchAgreement && hasAcknowledgedMatchResult ? (
         <div
           style={{
             position: "fixed",
