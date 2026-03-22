@@ -167,10 +167,10 @@ export default function GamePage() {
   return (
     <div
       style={{
-        padding: "clamp(12px, 2.4vw, 28px)",
+        padding: "clamp(6px, 1.6vw, 16px)",
         fontFamily: "system-ui",
         display: "grid",
-        gap: 20,
+        gap: 10,
         minHeight: "100vh",
         background:
           "radial-gradient(circle at center, rgba(196, 38, 38, 0.5) 0%, rgba(196, 38, 38, 0.5) 18%, transparent 19%, transparent 34%, rgba(18, 73, 148, 0.72) 35%, rgba(18, 73, 148, 0.72) 47%, transparent 48%), linear-gradient(180deg, #2d5c96 0%, #1f4170 100%)",
@@ -183,7 +183,7 @@ export default function GamePage() {
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",
           alignItems: "center",
-          gap: 12,
+          gap: 8,
         }}
       >
         <div style={{ justifySelf: "start" }}>
@@ -213,7 +213,12 @@ export default function GamePage() {
         ) : (
           <div />
         )}
-        <div style={{ display: "flex", gap: 8, alignItems: "center", justifySelf: "end" }}>
+        <div style={{ textAlign: "right", display: "grid", gap: 2, justifyItems: "end", justifySelf: "end" }}>
+          <div>
+            <div>Position: {me ? positionLabels[me.currentPosition] : "—"}</div>
+            <div>{currentPlayer ? `Turn: ${currentPlayer.name}` : "Waiting for players..."}</div>
+            {state?.gameMode === "THREE_ROUND" ? <div>Round Timer: {roundTimerLabel}</div> : null}
+          </div>
           <button
             onClick={() => {
               setShowRules((value) => {
@@ -231,16 +236,11 @@ export default function GamePage() {
               background: "#fff",
               fontWeight: 600,
               cursor: "pointer",
+              marginTop: 2,
             }}
           >
             {showRules ? "Hide Rules" : "Rules"}
           </button>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontWeight: 600 }}>{state ? `Phase: ${state.phase}` : "Connecting..."}</div>
-            <div>Position: {me ? positionLabels[me.currentPosition] : "—"}</div>
-            <div>{currentPlayer ? `Turn: ${currentPlayer.name}` : "Waiting for players..."}</div>
-            {state?.gameMode === "THREE_ROUND" ? <div>Round Timer: {roundTimerLabel}</div> : null}
-          </div>
         </div>
       </header>
 
@@ -289,9 +289,9 @@ export default function GamePage() {
         </section>
       ) : null}
 
-      <section style={{ display: "grid", gap: 12 }}>
+      <section style={{ display: "grid", gap: 6 }}>
         <h3 style={{ margin: 0 }}>Opponents</h3>
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
           {opponents.length === 0 ? (
             <div>Waiting for opponents to join.</div>
           ) : (
@@ -334,7 +334,7 @@ export default function GamePage() {
         </div>
       </section>
 
-      <section style={{ display: "grid", placeItems: "center", gap: 12 }}>
+      <section style={{ display: "grid", placeItems: "center", gap: 8 }}>
         <div
           style={{
             display: "flex",
@@ -406,7 +406,7 @@ export default function GamePage() {
         ) : null}
       </section>
 
-      <section style={{ display: "grid", gap: 12 }}>
+      <section style={{ display: "grid", gap: 6 }}>
         <h3 style={{ margin: 0 }}>Your Hand {me ? `(${me.hand.length})` : ""}</h3>
         {me ? (
           <>
