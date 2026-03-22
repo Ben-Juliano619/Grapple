@@ -179,54 +179,61 @@ export default function GamePage() {
         color: "#f9fbff",
       }}
     >
-      <div style={{ display: "grid", gap: 4, justifyItems: "center" }}>
-        {state?.gameMode === "THREE_ROUND" ? (
-          <div
-            style={{
-              background: "#fee",
-              border: "1px solid #f5c2c2",
-              padding: "4px 10px",
-              color: "#5f0000",
-              borderRadius: 8,
-              width: "max-content",
-              maxWidth: "min(100%, 560px)",
-              display: "inline-flex",
-              alignItems: "center",
-              minHeight: 0,
-            }}
-          >
-            {state.isOvertime ? "Overtime" : `Round ${state.currentRound}`} {state.gameResult === "DRAW" ? "- Draw" : ""}
-          </div>
-        ) : null}
-      </div>
-
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, position: "relative" }}>
         <div>
           <h2 style={{ margin: 0 }}>Grapple</h2>
           <p style={{ margin: "4px 0 0" }}>Game ID: {gameId}</p>
         </div>
-        {error ? (
+        {state?.gameMode === "THREE_ROUND" || error ? (
           <div
             style={{
-              background: "#fee",
-              border: "1px solid #f5c2c2",
-              padding: "4px 10px",
-              color: "#5f0000",
-              borderRadius: 8,
-              width: "max-content",
-              maxWidth: "min(100%, 560px)",
-              display: "inline-flex",
-              alignItems: "center",
-              minHeight: 0,
-              opacity: isErrorFading ? 0 : 1,
-              transition: "opacity 500ms ease",
               position: "absolute",
               left: "50%",
               top: 0,
               transform: "translateX(-50%)",
+              display: "grid",
+              gap: 4,
+              justifyItems: "center",
             }}
           >
-            {error}
+            {state?.gameMode === "THREE_ROUND" ? (
+              <div
+                style={{
+                  background: "rgba(0,0,0,0.35)",
+                  border: "1px solid rgba(255,255,255,0.4)",
+                  padding: "4px 10px",
+                  color: "#fff",
+                  borderRadius: 8,
+                  width: "max-content",
+                  maxWidth: "min(100%, 560px)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  minHeight: 0,
+                }}
+              >
+                {state.isOvertime ? "Overtime" : `Round ${state.currentRound}`} {state.gameResult === "DRAW" ? "- Draw" : ""}
+              </div>
+            ) : null}
+            {error ? (
+              <div
+                style={{
+                  background: "#fee",
+                  border: "1px solid #f5c2c2",
+                  padding: "4px 10px",
+                  color: "#5f0000",
+                  borderRadius: 8,
+                  width: "max-content",
+                  maxWidth: "min(100%, 560px)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  minHeight: 0,
+                  opacity: isErrorFading ? 0 : 1,
+                  transition: "opacity 500ms ease",
+                }}
+              >
+                {error}
+              </div>
+            ) : null}
           </div>
         ) : null}
         <div style={{ textAlign: "right", display: "grid", gap: 2, justifyItems: "end" }}>
