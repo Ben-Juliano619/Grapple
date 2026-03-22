@@ -167,7 +167,7 @@ export default function GamePage() {
   return (
     <div
       style={{
-        padding: "4px clamp(8px, 1.6vw, 16px) clamp(8px, 1.6vw, 16px)",
+        padding: "2px clamp(8px, 1.6vw, 16px) clamp(8px, 1.6vw, 16px)",
         fontFamily: "system-ui",
         display: "grid",
         gap: 4,
@@ -179,10 +179,10 @@ export default function GamePage() {
         color: "#f9fbff",
       }}
     >
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, position: "relative" }}>
-        <div>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, position: "relative" }}>
+        <div style={{ display: "grid", gap: 0, alignContent: "start" }}>
           <h2 style={{ margin: 0 }}>Grapple</h2>
-          <p style={{ margin: "4px 0 0" }}>Game ID: {gameId}</p>
+          <p style={{ margin: 0 }}>Game ID: {gameId}</p>
         </div>
         {state?.gameMode === "THREE_ROUND" || error ? (
           <div
