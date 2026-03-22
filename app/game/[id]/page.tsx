@@ -63,6 +63,7 @@ export default function GamePage() {
   const [state, setState] = useState<GameState | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isErrorFading, setIsErrorFading] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [rulesIndex, setRulesIndex] = useState(0);
   const [now, setNow] = useState(() => Date.now());
@@ -107,6 +108,23 @@ export default function GamePage() {
     if (state?.phase === "ENDED") return;
     setHasAcknowledgedMatchResult(false);
   }, [state?.phase]);
+
+  useEffect(() => {
+    if (!error) return;
+
+    setIsErrorFading(false);
+
+    const fadeTimer = window.setTimeout(() => setIsErrorFading(true), 7000);
+    const clearTimer = window.setTimeout(() => {
+      setError(null);
+      setIsErrorFading(false);
+    }, 7500);
+
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(clearTimer);
+    };
+  }, [error]);
 
   const me = state?.players.find((player) => player.id === playerId) ?? null;
   const opponents = state?.players.filter((player) => player.id !== playerId) ?? [];
@@ -241,7 +259,23 @@ export default function GamePage() {
         </section>
       ) : null}
 
-      {error ? <div style={{ background: "#fee", border: "1px solid #f5c2c2", padding: 12, color: "#5f0000" }}>{error}</div> : null}
+      {error ? (
+        <div
+          style={{
+            background: "#fee",
+            border: "1px solid #f5c2c2",
+            padding: "7px 10px",
+            color: "#5f0000",
+            fontSize: 14,
+            lineHeight: 1.3,
+            borderRadius: 8,
+            opacity: isErrorFading ? 0 : 1,
+            transition: "opacity 500ms ease",
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
 
       <section style={{ display: "grid", gap: 12 }}>
         <h3 style={{ margin: 0 }}>Opponents</h3>
