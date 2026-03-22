@@ -170,7 +170,8 @@ export default function GamePage() {
         padding: "4px clamp(8px, 1.6vw, 16px) clamp(8px, 1.6vw, 16px)",
         fontFamily: "system-ui",
         display: "grid",
-        gap: 10,
+        gap: 4,
+        alignContent: "start",
         minHeight: "100vh",
         background:
           "radial-gradient(circle at center, rgba(196, 38, 38, 0.5) 0%, rgba(196, 38, 38, 0.5) 18%, transparent 19%, transparent 34%, rgba(18, 73, 148, 0.72) 35%, rgba(18, 73, 148, 0.72) 47%, transparent 48%), linear-gradient(180deg, #2d5c96 0%, #1f4170 100%)",
@@ -178,18 +179,25 @@ export default function GamePage() {
         color: "#f9fbff",
       }}
     >
-      <header
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
-        <div style={{ justifySelf: "start" }}>
-          <h2 style={{ margin: 0 }}>Grapple</h2>
-          <p style={{ margin: "4px 0 0" }}>Game ID: {gameId}</p>
-        </div>
+      <div style={{ display: "grid", gap: 4, justifyItems: "center" }}>
+        {state?.gameMode === "THREE_ROUND" ? (
+          <div
+            style={{
+              background: "#fee",
+              border: "1px solid #f5c2c2",
+              padding: "4px 10px",
+              color: "#5f0000",
+              borderRadius: 8,
+              width: "max-content",
+              maxWidth: "min(100%, 560px)",
+              display: "inline-flex",
+              alignItems: "center",
+              minHeight: 0,
+            }}
+          >
+            {state.isOvertime ? "Overtime" : `Round ${state.currentRound}`} {state.gameResult === "DRAW" ? "- Draw" : ""}
+          </div>
+        ) : null}
         {error ? (
           <div
             style={{
@@ -202,7 +210,6 @@ export default function GamePage() {
               maxWidth: "min(100%, 560px)",
               display: "inline-flex",
               alignItems: "center",
-              justifySelf: "center",
               minHeight: 0,
               opacity: isErrorFading ? 0 : 1,
               transition: "opacity 500ms ease",
@@ -210,10 +217,15 @@ export default function GamePage() {
           >
             {error}
           </div>
-        ) : (
-          <div />
-        )}
-        <div style={{ textAlign: "right", display: "grid", gap: 2, justifyItems: "end", justifySelf: "end" }}>
+        ) : null}
+      </div>
+
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <div>
+          <h2 style={{ margin: 0 }}>Grapple</h2>
+          <p style={{ margin: "4px 0 0" }}>Game ID: {gameId}</p>
+        </div>
+        <div style={{ textAlign: "right", display: "grid", gap: 2, justifyItems: "end" }}>
           <div>
             <div>Position: {me ? positionLabels[me.currentPosition] : "—"}</div>
             <div>{currentPlayer ? `Turn: ${currentPlayer.name}` : "Waiting for players..."}</div>
@@ -243,12 +255,6 @@ export default function GamePage() {
           </button>
         </div>
       </header>
-
-      {state?.gameMode === "THREE_ROUND" ? (
-        <div style={{ background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 10, padding: "8px 12px", fontWeight: 700 }}>
-          {state.isOvertime ? "Overtime" : `Round ${state.currentRound}`} {state.gameResult === "DRAW" ? "- Draw" : ""}
-        </div>
-      ) : null}
 
       {showRules ? (
         <section
@@ -289,7 +295,7 @@ export default function GamePage() {
         </section>
       ) : null}
 
-      <section style={{ display: "grid", gap: 6 }}>
+      <section style={{ display: "grid", gap: 4 }}>
         <h3 style={{ margin: 0 }}>Opponents</h3>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
           {opponents.length === 0 ? (
@@ -334,7 +340,7 @@ export default function GamePage() {
         </div>
       </section>
 
-      <section style={{ display: "grid", placeItems: "center", gap: 8 }}>
+      <section style={{ display: "grid", placeItems: "center", gap: 4 }}>
         <div
           style={{
             display: "flex",
@@ -406,7 +412,7 @@ export default function GamePage() {
         ) : null}
       </section>
 
-      <section style={{ display: "grid", gap: 6 }}>
+      <section style={{ display: "grid", gap: 4 }}>
         <h3 style={{ margin: 0 }}>Your Hand {me ? `(${me.hand.length})` : ""}</h3>
         {me ? (
           <>
