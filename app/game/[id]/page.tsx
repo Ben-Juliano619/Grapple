@@ -179,7 +179,7 @@ export default function GamePage() {
         color: "#f9fbff",
       }}
     >
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, position: "relative" }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, position: "relative" }}>
         <div>
           <h2 style={{ margin: 0 }}>Grapple</h2>
           <p style={{ margin: "4px 0 0" }}>Game ID: {gameId}</p>
