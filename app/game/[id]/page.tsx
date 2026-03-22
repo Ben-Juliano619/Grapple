@@ -340,7 +340,7 @@ export default function GamePage() {
         </div>
       </section>
 
-      <section style={{ display: "grid", placeItems: "center", gap: 4 }}>
+      <section style={{ display: "grid", placeItems: "center", gap: 4, marginTop: "clamp(36px, 11vh, 150px)" }}>
         <div
           style={{
             display: "flex",
