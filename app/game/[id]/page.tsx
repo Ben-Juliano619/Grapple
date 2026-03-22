@@ -198,6 +198,13 @@ export default function GamePage() {
             {state.isOvertime ? "Overtime" : `Round ${state.currentRound}`} {state.gameResult === "DRAW" ? "- Draw" : ""}
           </div>
         ) : null}
+      </div>
+
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, position: "relative" }}>
+        <div>
+          <h2 style={{ margin: 0 }}>Grapple</h2>
+          <p style={{ margin: "4px 0 0" }}>Game ID: {gameId}</p>
+        </div>
         {error ? (
           <div
             style={{
@@ -213,18 +220,15 @@ export default function GamePage() {
               minHeight: 0,
               opacity: isErrorFading ? 0 : 1,
               transition: "opacity 500ms ease",
+              position: "absolute",
+              left: "50%",
+              top: 0,
+              transform: "translateX(-50%)",
             }}
           >
             {error}
           </div>
         ) : null}
-      </div>
-
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <div>
-          <h2 style={{ margin: 0 }}>Grapple</h2>
-          <p style={{ margin: "4px 0 0" }}>Game ID: {gameId}</p>
-        </div>
         <div style={{ textAlign: "right", display: "grid", gap: 2, justifyItems: "end" }}>
           <div>
             <div>Position: {me ? positionLabels[me.currentPosition] : "—"}</div>
