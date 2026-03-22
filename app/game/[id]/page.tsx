@@ -167,7 +167,7 @@ export default function GamePage() {
   return (
     <div
       style={{
-        padding: "clamp(6px, 1.6vw, 16px)",
+        padding: "4px clamp(8px, 1.6vw, 16px) clamp(8px, 1.6vw, 16px)",
         fontFamily: "system-ui",
         display: "grid",
         gap: 10,
