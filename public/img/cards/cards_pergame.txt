@@ -13,10 +13,10 @@
 1 neutral_ankle_pick_to_back.png
 2 neutral_attempted_takedown.png
 3 neutral_double_leg_takedown.png
-1 neutral_duck_under.png
+1 neutral_duck_under_takedown.png
 1 neutral_firemans_carry_to_opponents_back.png
 1 neutral_head_lock_to_pin.pngc
-1 neutral_hip_toss.png
+1 neutral_hip_toss_takedown.png
 3 neutral_single_leg_takedown.png
 2 out_of_bounds.png
 2 penalty.png
