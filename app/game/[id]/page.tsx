@@ -264,7 +264,7 @@ export default function GamePage() {
           style={{
             background: "#fee",
             border: "1px solid #f5c2c2",
-            padding: "8px 10px",
+            padding: "4px 10px",
             color: "#5f0000",
             borderRadius: 8,
             width: "fit-content",
