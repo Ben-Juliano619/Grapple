@@ -63,6 +63,7 @@ export default function GamePage() {
   const [state, setState] = useState<GameState | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isErrorFading, setIsErrorFading] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [rulesIndex, setRulesIndex] = useState(0);
   const [now, setNow] = useState(() => Date.now());
@@ -107,6 +108,23 @@ export default function GamePage() {
     if (state?.phase === "ENDED") return;
     setHasAcknowledgedMatchResult(false);
   }, [state?.phase]);
+
+  useEffect(() => {
+    if (!error) return;
+
+    setIsErrorFading(false);
+
+    const fadeTimer = window.setTimeout(() => setIsErrorFading(true), 7000);
+    const clearTimer = window.setTimeout(() => {
+      setError(null);
+      setIsErrorFading(false);
+    }, 7500);
+
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(clearTimer);
+    };
+  }, [error]);
 
   const me = state?.players.find((player) => player.id === playerId) ?? null;
   const opponents = state?.players.filter((player) => player.id !== playerId) ?? [];
@@ -160,12 +178,42 @@ export default function GamePage() {
         color: "#f9fbff",
       }}
     >
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <div>
+      <header
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <div style={{ justifySelf: "start" }}>
           <h2 style={{ margin: 0 }}>Grapple</h2>
           <p style={{ margin: "4px 0 0" }}>Game ID: {gameId}</p>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        {error ? (
+          <div
+            style={{
+              background: "#fee",
+              border: "1px solid #f5c2c2",
+              padding: "4px 10px",
+              color: "#5f0000",
+              borderRadius: 8,
+              width: "max-content",
+              maxWidth: "min(100%, 560px)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifySelf: "center",
+              minHeight: 0,
+              opacity: isErrorFading ? 0 : 1,
+              transition: "opacity 500ms ease",
+            }}
+          >
+            {error}
+          </div>
+        ) : (
+          <div />
+        )}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", justifySelf: "end" }}>
           <button
             onClick={() => {
               setShowRules((value) => {
@@ -240,8 +288,6 @@ export default function GamePage() {
           </div>
         </section>
       ) : null}
-
-      {error ? <div style={{ background: "#fee", border: "1px solid #f5c2c2", padding: 12, color: "#5f0000" }}>{error}</div> : null}
 
       <section style={{ display: "grid", gap: 12 }}>
         <h3 style={{ margin: 0 }}>Opponents</h3>
