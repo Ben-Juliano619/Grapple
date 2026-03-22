@@ -268,7 +268,11 @@ export default function GamePage() {
             color: "#5f0000",
             borderRadius: 8,
             width: "fit-content",
+            height: "fit-content",
             maxWidth: "100%",
+            alignItems: "center",
+            justifySelf: "center",
+            display: "inline-flex",
             opacity: isErrorFading ? 0 : 1,
             transition: "opacity 500ms ease",
           }}
