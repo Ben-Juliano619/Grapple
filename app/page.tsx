@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { io } from "socket.io-client";
-import { getOrCreateSessionId } from "./lib/session";
+import { clearGameSessionCookie, createNewGameSession, readGameSessionCookie } from "./lib/session";
 
 export default function Home() {
   const router = useRouter();
@@ -14,12 +14,38 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
+    let isActive = true;
     const storedName = window.localStorage.getItem("grapple.playerName");
     if (storedName) {
       setPlayerName(storedName);
     }
-    getOrCreateSessionId();
+
+    const validateSession = async () => {
+      const existing = readGameSessionCookie();
+      if (!existing) return;
+
+      try {
+        const query = new URLSearchParams(existing);
+        const response = await fetch(`http://localhost:3001/api/session/validate?${query.toString()}`);
+        if (!response.ok) {
+          clearGameSessionCookie();
+          return;
+        }
+
+        const result = (await response.json()) as { ok: boolean; valid?: boolean };
+        if (!isActive) return;
+        if (!result.ok || !result.valid) {
+          clearGameSessionCookie();
+        }
+      } catch {
+        clearGameSessionCookie();
+      }
+    };
+
+    void validateSession();
+
     return () => {
+      isActive = false;
       socket.disconnect();
     };
   }, [socket]);
@@ -38,9 +64,11 @@ export default function Home() {
       null,
       (response: { ok: boolean; gameId?: string; error?: string }) => {
         if (response.ok && response.gameId) {
+          createNewGameSession(response.gameId);
           router.push(`/game/${response.gameId}`);
           return;
         }
+        clearGameSessionCookie();
         if (response.error) {
           setErrorMessage(response.error);
         }
@@ -62,12 +90,15 @@ export default function Home() {
     }
 
     setErrorMessage("");
-    const sessionId = getOrCreateSessionId();
+    const currentSession = readGameSessionCookie();
+    const sessionId =
+      currentSession?.gameId === trimmedCode ? currentSession.sessionId : createNewGameSession(trimmedCode).sessionId;
     socket.emit(
       "game:validateJoin",
       { gameId: trimmedCode, playerName: trimmedPlayerName, sessionId },
       (response: { ok: boolean; error?: string }) => {
         if (!response.ok) {
+          clearGameSessionCookie();
           setErrorMessage(response.error ?? "Unable to join game");
           return;
         }

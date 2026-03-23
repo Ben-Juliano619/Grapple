@@ -4,9 +4,22 @@ import http from "http";
 import { Server } from "socket.io";
 import { createGameState, applyAction, isPlayerInGame, tickRoundTimer } from "./logic";
 import { Position } from "../shared/types";
+import {
+  CLEANUP_INTERVAL_MS,
+  createGameSessionState,
+  markConnected as markSessionConnected,
+  markDisconnected as markSessionDisconnected,
+  type GameSessionState,
+  shouldCleanupGame,
+} from "./sessionLifecycle";
 
 const app = express();
 const server = http.createServer(app);
+
+app.use((_, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  next();
+});
 
 const io = new Server(server, {
   cors: { origin: "*" }, // lock down later
@@ -14,7 +27,7 @@ const io = new Server(server, {
 
 type GameId = string;
 const games = new Map<GameId, ReturnType<typeof createGameState>>();
-const gameSessions = new Map<GameId, Map<string, string>>();
+const gameSessions = new Map<GameId, GameSessionState>();
 const MAX_PLAYERS = 4;
 
 function generateSixDigitGameId() {
@@ -45,8 +58,48 @@ function getJoinError(state: ReturnType<typeof createGameState>, playerName: str
 function getResumePlayerId(gameId: string, sessionId: string) {
   const gameSessionMap = gameSessions.get(gameId);
   if (!gameSessionMap) return null;
-  return gameSessionMap.get(sessionId) ?? null;
+  return gameSessionMap.sessionToPlayerId.get(sessionId) ?? null;
 }
+
+function isReconnectableSession(gameId: string, sessionId: string) {
+  const state = games.get(gameId);
+  const sessionState = gameSessions.get(gameId);
+  if (!state || !sessionState) return false;
+
+  const playerId = sessionState.sessionToPlayerId.get(sessionId);
+  if (!playerId) return false;
+  if (state.phase === "ENDED") return false;
+  return isPlayerInGame(state, playerId);
+}
+
+function markConnected(gameId: string, socketId: string) {
+  const sessionState = gameSessions.get(gameId);
+  if (!sessionState) return;
+  markSessionConnected(sessionState, socketId);
+}
+
+function markDisconnected(gameId: string, socketId: string, now: number) {
+  const sessionState = gameSessions.get(gameId);
+  if (!sessionState) return;
+  markSessionDisconnected(sessionState, socketId, now);
+}
+
+function deleteGame(gameId: string) {
+  games.delete(gameId);
+  gameSessions.delete(gameId);
+}
+
+app.get("/api/session/validate", (req, res) => {
+  const gameId = String(req.query.gameId ?? "");
+  const sessionId = String(req.query.sessionId ?? "");
+
+  if (!gameId || !sessionId) {
+    return res.status(400).json({ ok: false, valid: false, reason: "Missing gameId or sessionId" });
+  }
+
+  const valid = isReconnectableSession(gameId, sessionId);
+  return res.json({ ok: true, valid });
+});
 
 io.on("connection", (socket) => {
   socket.on(
@@ -56,6 +109,7 @@ io.on("connection", (socket) => {
       callback?: (response: { ok: true; gameId: string } | { ok: false; error: string }) => void,
     ) => {
       const gameId = createUniqueGameId();
+      const now = Date.now();
 
       const state = createGameState(gameId);
       if (payload?.mode === "CLASSIC" || payload?.mode === "THREE_ROUND") {
@@ -63,7 +117,7 @@ io.on("connection", (socket) => {
       }
 
       games.set(gameId, state);
-      gameSessions.set(gameId, new Map());
+      gameSessions.set(gameId, createGameSessionState(now));
       socket.join(gameId);
       io.to(gameId).emit("game:state", state);
       callback?.({ ok: true, gameId });
@@ -113,7 +167,9 @@ io.on("connection", (socket) => {
         const existingPlayerId = getResumePlayerId(gameId, sessionId);
         if (existingPlayerId && isPlayerInGame(state, existingPlayerId)) {
           socket.data.playerId = existingPlayerId;
+          socket.data.gameId = gameId;
           socket.join(gameId);
+          markConnected(gameId, socket.id);
           io.to(gameId).emit("game:state", state);
           callback?.({ ok: true, playerId: existingPlayerId, state });
           return;
@@ -139,12 +195,14 @@ io.on("connection", (socket) => {
       });
 
       socket.data.playerId = playerId;
+      socket.data.gameId = gameId;
       if (sessionId) {
-        const gameSessionMap = gameSessions.get(gameId) ?? new Map<string, string>();
-        gameSessionMap.set(sessionId, playerId);
-        gameSessions.set(gameId, gameSessionMap);
+        const gameSessionState = gameSessions.get(gameId) ?? createGameSessionState(Date.now());
+        gameSessionState.sessionToPlayerId.set(sessionId, playerId);
+        gameSessions.set(gameId, gameSessionState);
       }
       socket.join(gameId);
+      markConnected(gameId, socket.id);
 
       io.to(gameId).emit("game:state", state);
       callback?.({ ok: true, playerId, state });
@@ -261,8 +319,13 @@ io.on("connection", (socket) => {
     if (!isPlayerInGame(state, playerId)) return socket.emit("game:error", "Not in this game");
 
     io.to(gameId).emit("game:ended");
-    games.delete(gameId);
-    gameSessions.delete(gameId);
+    deleteGame(gameId);
+  });
+
+  socket.on("disconnect", () => {
+    const gameId = socket.data.gameId as string | undefined;
+    if (!gameId) return;
+    markDisconnected(gameId, socket.id, Date.now());
   });
 });
 
@@ -274,5 +337,16 @@ setInterval(() => {
     }
   }
 }, 1000);
+
+setInterval(() => {
+  const now = Date.now();
+
+  for (const [gameId, sessionState] of gameSessions.entries()) {
+    if (shouldCleanupGame(sessionState, now)) {
+      io.to(gameId).emit("game:ended");
+      deleteGame(gameId);
+    }
+  }
+}, CLEANUP_INTERVAL_MS);
 
 server.listen(3001, () => console.log("Server running on :3001"));
