@@ -1,0 +1,196 @@
+.game-page {
+  font-family: system-ui;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-height: 100dvh;
+  color: #f9fbff;
+  padding: 2px clamp(8px, 1.6vw, 16px) clamp(8px, 1.6vw, 16px);
+  background:
+    radial-gradient(circle at 50% 44%, rgba(196, 38, 38, 0.5) 0%, rgba(196, 38, 38, 0.5) 18%, transparent 19%, transparent 34%, rgba(18, 73, 148, 0.72) 35%, rgba(18, 73, 148, 0.72) 47%, transparent 48%),
+    linear-gradient(180deg, #2d5c96 0%, #1f4170 100%);
+}
+
+.game-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.header-left,
+.header-middle,
+.header-right {
+  min-width: 0;
+}
+
+.header-middle {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+
+.header-pill {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 4px 10px;
+  color: #fff;
+  border-radius: 8px;
+  max-width: 100%;
+  text-align: center;
+}
+
+.header-error {
+  background: #fee;
+  border: 1px solid #f5c2c2;
+  color: #5f0000;
+  overflow-wrap: anywhere;
+  opacity: 1;
+  transition: opacity 500ms ease;
+}
+
+.header-error.fading {
+  opacity: 0;
+}
+
+.header-right {
+  text-align: right;
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+}
+
+.surface {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 12px;
+  background: rgba(7, 24, 49, 0.65);
+}
+
+.rules-section {
+  padding: clamp(12px, 3vw, 16px);
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+
+.rules-controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.opponents-wrap {
+  display: grid;
+  gap: 8px;
+}
+
+.opponents-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.opponent-card {
+  padding: 10px 12px 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.draw-area {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  margin-top: clamp(16px, 7vh, 90px);
+}
+
+.draw-layout {
+  display: grid;
+  gap: clamp(14px, 2.6vw, 30px);
+  width: min(100%, 760px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.pile-card {
+  width: min(100%, clamp(128px, 23vw, 190px));
+  justify-self: center;
+}
+
+.hand-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(clamp(126px, 15vw, 190px), 1fr));
+  width: 100%;
+}
+
+.hand-row > button {
+  max-width: 190px;
+  width: 100%;
+  justify-self: center;
+}
+
+.hand-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1023px) {
+  .game-header {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .header-middle {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+
+  .draw-layout {
+    width: 100%;
+  }
+}
+
+@media (max-width: 767px) {
+  .game-page {
+    gap: 10px;
+  }
+
+  .game-header {
+    grid-template-columns: 1fr;
+  }
+
+  .header-right {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .draw-area {
+    margin-top: 4px;
+  }
+
+  .draw-layout {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .opponents-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hand-row {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(150px, 60vw);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 4px;
+  }
+
+  .hand-row > button {
+    scroll-snap-align: center;
+  }
+}

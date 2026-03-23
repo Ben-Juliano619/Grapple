@@ -1,0 +1,73 @@
+.home-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: clamp(16px, 3vw, 36px);
+  background: radial-gradient(circle at center, #922 0%, #7d1f1f 30%, #4a1111 68%, #240808 100%);
+}
+
+.home-card {
+  width: min(92vw, 640px);
+  border-radius: 26px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background:
+    linear-gradient(145deg, rgba(35, 5, 8, 0.95), rgba(80, 14, 18, 0.95)),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.06) 0px, rgba(255, 255, 255, 0.06) 2px, transparent 2px, transparent 10px);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  padding: clamp(20px, 4vw, 38px);
+  color: #fff;
+  display: grid;
+  gap: 18px;
+  text-align: center;
+}
+
+.home-grid {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+.home-input,
+.home-button {
+  width: 100%;
+  border-radius: 10px;
+  min-height: 44px;
+}
+
+.home-input {
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  padding: 12px 14px;
+}
+
+.home-button {
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 10px 14px;
+}
+
+.home-button.primary {
+  background: #f8f8f8;
+  color: #320a0a;
+  border-color: #fff;
+}
+
+.home-button.secondary {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.home-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+@media (max-width: 767px) {
+  .home-card {
+    width: min(100%, 540px);
+    border-radius: 20px;
+    gap: 14px;
+  }
+}

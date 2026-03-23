@@ -17,15 +17,61 @@ const app = express();
 const server = http.createServer(app);
 const port = Number(process.env.PORT || 3001);
 const isProduction = process.env.NODE_ENV === "production";
-const clientOrigin = isProduction ? process.env.CLIENT_URL || "https://grapplewrestlingcardgame.com" : "*";
+const privateHostPattern =
+  /^(localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})(:\d+)?$/i;
+const configuredClientOrigins = (process.env.CLIENT_URL ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-app.use((_, res, next) => {
-  res.header("Access-Control-Allow-Origin", clientOrigin);
+if (isProduction && configuredClientOrigins.length === 0) {
+  configuredClientOrigins.push("https://grapplewrestlingcardgame.com");
+}
+
+function isAllowedOrigin(origin: string | undefined) {
+  if (!origin) return !isProduction;
+  if (configuredClientOrigins.includes(origin)) return true;
+  if (isProduction) return false;
+
+  try {
+    const parsed = new URL(origin);
+    return privateHostPattern.test(`${parsed.hostname}${parsed.port ? `:${parsed.port}` : ""}`);
+  } catch {
+    return false;
+  }
+}
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (isAllowedOrigin(origin)) {
+    if (origin) {
+      res.header("Access-Control-Allow-Origin", origin);
+      res.header("Vary", "Origin");
+    }
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  }
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
   next();
 });
 
 const io = new Server(server, {
-  cors: { origin: clientOrigin },
+  cors: {
+    origin(origin, callback) {
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error("Origin not allowed by CORS"));
+    },
+    credentials: true,
+  },
 });
 
 type GameId = string;
@@ -357,5 +403,7 @@ setInterval(() => {
 
 server.listen(port, () => {
   console.log(`Server running on :${port}`);
-  console.log(`Socket.IO CORS origin: ${clientOrigin}`);
+  console.log(
+    `Socket.IO CORS origins: ${configuredClientOrigins.length ? configuredClientOrigins.join(", ") : "(development private network origins allowed)"}`,
+  );
 });
