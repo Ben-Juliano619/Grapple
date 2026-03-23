@@ -1,12 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type { Card, Position } from "../../../shared/types";
 import { getSocket } from "../../lib/socket";
 import { ensureSessionForGame } from "../../lib/session";
 import { resetGameSessionState, setActiveGameId } from "../../lib/gameSessionState";
+import "./game.css";
 
 type PlayerState = {
   id: string;
@@ -49,10 +50,26 @@ const positionLabels: Record<Position, string> = {
 
 const BACK_OF_CARD = "/img/cards/back_of_card.png";
 const RULES_CARDS = ["/img/cards/rules1.png", "/img/cards/rules2.png", "/img/cards/rules3.png"];
+const CARD_IMAGE_SIZES = "(max-width: 767px) 58vw, (max-width: 1023px) 25vw, 190px";
+const WHITE_BUTTON: CSSProperties = {
+  padding: "10px 12px",
+  borderRadius: 8,
+  border: "1px solid #fff",
+  background: "#fff",
+  fontWeight: 700,
+};
 
 function getCardImage(card: Card | null): string {
   if (!card?.imageFile) return BACK_OF_CARD;
   return `/img/cards/${card.imageFile}`;
+}
+
+function Modal({ children, zIndex = 30 }: { children: React.ReactNode; zIndex?: number }) {
+  return (
+    <div className="modal-overlay" style={{ zIndex }}>
+      <div className="modal-card">{children}</div>
+    </div>
+  );
 }
 
 export default function GamePage() {
@@ -109,10 +126,15 @@ export default function GamePage() {
     };
   }, [socket, gameId, router]);
 
+  const needsTimerTick = Boolean(
+    state?.gameMode === "THREE_ROUND" && state?.roundEndsAt && !state?.isOvertime && state.phase !== "ENDED",
+  );
+
   useEffect(() => {
+    if (!needsTimerTick) return;
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, []);
+  }, [needsTimerTick]);
 
   useEffect(() => {
     if (state?.phase === "ENDED") return;
@@ -141,7 +163,6 @@ export default function GamePage() {
   const currentPlayer = state?.players[state.currentTurnIndex];
   const isMyTurn = Boolean(currentPlayer && currentPlayer.id === playerId);
   const topCard = state?.discardPile[state.discardPile.length - 1] ?? null;
-  const cardWidth = "clamp(124px, 12.5vw, 190px)";
   const needsEndOfPeriodChoice = Boolean(state && playerId && state.pendingEndOfPeriodPlayerId === playerId);
   const rematchVotesCount = state?.rematchVotes.length ?? 0;
   const hasVotedForRematch = Boolean(playerId && state?.rematchVotes.includes(playerId));
@@ -158,8 +179,11 @@ export default function GamePage() {
   );
   const roundSecondsLeft = state?.roundEndsAt ? Math.max(0, Math.ceil((state.roundEndsAt - now) / 1000)) : null;
   const roundTimerLabel =
-    state?.isOvertime ? "No time limit (Overtime)" : roundSecondsLeft === null ? "--:--" : `${Math.floor(roundSecondsLeft / 60).toString().padStart(2, "0")}:${(roundSecondsLeft % 60).toString().padStart(2, "0")}`;
-
+    state?.isOvertime
+      ? "No time limit (Overtime)"
+      : roundSecondsLeft === null
+        ? "--:--"
+        : `${Math.floor(roundSecondsLeft / 60).toString().padStart(2, "0")}:${(roundSecondsLeft % 60).toString().padStart(2, "0")}`;
 
   const getBannerLabel = (displayPlayerId: string) => {
     if (!state?.playerBanners[displayPlayerId]) return null;
@@ -170,83 +194,30 @@ export default function GamePage() {
     return `${banner} - Lose`;
   };
 
+  const cardDisabled = !isMyTurn || state?.phase === "LOBBY" || needsEndOfPeriodChoice || pendingRound2Decision || pendingRoundStartPositionChoice;
+
   function chooseEndOfPeriodPosition(position: Position) {
     socket.emit("turn:endOfPeriodPosition", { gameId, position });
   }
 
   return (
-    <div
-      style={{
-        padding: "2px clamp(8px, 1.6vw, 16px) clamp(8px, 1.6vw, 16px)",
-        fontFamily: "system-ui",
-        display: "grid",
-        gap: 4,
-        alignContent: "start",
-        minHeight: "100vh",
-        background:
-          "radial-gradient(circle at 50% 44%, rgba(196, 38, 38, 0.5) 0%, rgba(196, 38, 38, 0.5) 18%, transparent 19%, transparent 34%, rgba(18, 73, 148, 0.72) 35%, rgba(18, 73, 148, 0.72) 47%, transparent 48%), linear-gradient(180deg, #2d5c96 0%, #1f4170 100%)",
-        backgroundAttachment: "fixed",
-        color: "#f9fbff",
-      }}
-    >
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, position: "relative" }}>
-        <div style={{ display: "grid", gap: 0, alignContent: "start" }}>
+    <div className="game-page mobile-safe-page">
+      <header className="game-header">
+        <div className="header-left">
           <h2 style={{ margin: 0 }}>Grapple</h2>
           <p style={{ margin: 0 }}>Game ID: {gameId}</p>
         </div>
-        {state?.gameMode === "THREE_ROUND" || error ? (
-          <div
-            style={{
-              position: "absolute",
-              left: "50%",
-              top: 0,
-              transform: "translateX(-50%)",
-              display: "grid",
-              gap: 4,
-              justifyItems: "center",
-            }}
-          >
-            {state?.gameMode === "THREE_ROUND" ? (
-              <div
-                style={{
-                  background: "rgba(0,0,0,0.35)",
-                  border: "1px solid rgba(255,255,255,0.4)",
-                  padding: "4px 10px",
-                  color: "#fff",
-                  borderRadius: 8,
-                  width: "max-content",
-                  maxWidth: "min(100%, 560px)",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  minHeight: 0,
-                }}
-              >
-                {state.isOvertime ? "Overtime" : `Round ${state.currentRound}`} {state.gameResult === "DRAW" ? "- Draw" : ""}
-              </div>
-            ) : null}
-            {error ? (
-              <div
-                style={{
-                  background: "#fee",
-                  border: "1px solid #f5c2c2",
-                  padding: "4px 10px",
-                  color: "#5f0000",
-                  borderRadius: 8,
-                  width: "max-content",
-                  maxWidth: "min(100%, 560px)",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  minHeight: 0,
-                  opacity: isErrorFading ? 0 : 1,
-                  transition: "opacity 500ms ease",
-                }}
-              >
-                {error}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        <div style={{ textAlign: "right", display: "grid", gap: 2, justifyItems: "end" }}>
+
+        <div className="header-middle">
+          {state?.gameMode === "THREE_ROUND" ? (
+            <div className="header-pill">
+              {state.isOvertime ? "Overtime" : `Round ${state.currentRound}`} {state.gameResult === "DRAW" ? "- Draw" : ""}
+            </div>
+          ) : null}
+          {error ? <div className={`header-pill header-error ${isErrorFading ? "fading" : ""}`}>{error}</div> : null}
+        </div>
+
+        <div className="header-right">
           <div>
             <div>{currentPlayer ? `Turn: ${currentPlayer.name}` : "Waiting for players..."}</div>
             {state?.gameMode === "THREE_ROUND" ? <div>Round Timer: {roundTimerLabel}</div> : null}
@@ -255,21 +226,12 @@ export default function GamePage() {
             onClick={() => {
               setShowRules((value) => {
                 const next = !value;
-                if (next) {
-                  setRulesIndex(0);
-                }
+                if (next) setRulesIndex(0);
                 return next;
               });
             }}
-            style={{
-              padding: "8px 14px",
-              borderRadius: 8,
-              border: "1px solid #111",
-              background: "#fff",
-              fontWeight: 600,
-              cursor: "pointer",
-              marginTop: 2,
-            }}
+            className="touch-target"
+            style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #111", background: "#fff", color: "#111", fontWeight: 600, cursor: "pointer" }}
           >
             {showRules ? "Hide Rules" : "Rules"}
           </button>
@@ -277,37 +239,30 @@ export default function GamePage() {
       </header>
 
       {showRules ? (
-        <section
-          style={{
-            border: "1px solid rgba(255,255,255,0.35)",
-            borderRadius: 12,
-            padding: 16,
-            background: "rgba(7, 24, 49, 0.7)",
-            display: "grid",
-            gap: 12,
-            justifyItems: "center",
-          }}
-        >
+        <section className="surface rules-section">
           <h3 style={{ margin: 0 }}>Rules Card {rulesIndex + 1} of {RULES_CARDS.length}</h3>
           <Image
             src={RULES_CARDS[rulesIndex]}
             alt={`Rules card ${rulesIndex + 1}`}
             width={600}
             height={860}
+            sizes="(max-width: 767px) 92vw, 600px"
             style={{ width: "min(100%, 600px)", height: "auto", borderRadius: 10, border: "1px solid #ccc" }}
           />
-          <div style={{ display: "flex", gap: 10 }}>
+          <div className="rules-controls">
             <button
               onClick={() => setRulesIndex((index) => Math.max(0, index - 1))}
               disabled={rulesIndex === 0}
-              style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #111", background: "#fff", fontWeight: 600 }}
+              className="touch-target"
+              style={{ ...WHITE_BUTTON, border: "1px solid #111" }}
             >
               ← Previous
             </button>
             <button
               onClick={() => setRulesIndex((index) => Math.min(RULES_CARDS.length - 1, index + 1))}
               disabled={rulesIndex === RULES_CARDS.length - 1}
-              style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #111", background: "#fff", fontWeight: 600 }}
+              className="touch-target"
+              style={{ ...WHITE_BUTTON, border: "1px solid #111" }}
             >
               Next →
             </button>
@@ -315,25 +270,14 @@ export default function GamePage() {
         </section>
       ) : null}
 
-      <section style={{ display: "grid", gap: 4 }}>
+      <section className="opponents-wrap">
         <h3 style={{ margin: 0 }}>Opponents</h3>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
+        <div className="opponents-grid">
           {opponents.length === 0 ? (
             <div>Waiting for opponents to join.</div>
           ) : (
             opponents.map((player) => (
-              <div
-                key={player.id}
-                style={{
-                  border: "1px solid rgba(255,255,255,0.35)",
-                  borderRadius: 12,
-                  padding: "10px 12px 8px",
-                  minWidth: 180,
-                  background: "rgba(7, 24, 49, 0.65)",
-                  display: "grid",
-                  gap: 4,
-                }}
-              >
+              <div key={player.id} className="surface opponent-card">
                 <div style={{ fontWeight: 600 }}>{player.name}</div>
                 {state?.gameMode === "THREE_ROUND" && state.playerBanners[player.id] ? (
                   <div style={{ marginTop: 6, display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, color: "#fff", background: state.playerBanners[player.id] === "GREEN" ? "#16a34a" : "#dc2626" }}>
@@ -342,7 +286,7 @@ export default function GamePage() {
                 ) : null}
                 <div style={{ fontSize: 12 }}>Penalties: {player.penaltyPoints}</div>
                 <div style={{ fontSize: 12 }}>Position: {positionLabels[player.currentPosition]}</div>
-                <div style={{ marginTop: 6, display: "flex", gap: 6 }}>
+                <div style={{ marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {Array.from({ length: player.hand.length }).map((_, index) => (
                     <Image
                       key={index}
@@ -350,6 +294,8 @@ export default function GamePage() {
                       alt="Face down card"
                       width={22}
                       height={32}
+                      sizes="22px"
+                      unoptimized
                       style={{ width: 22, height: 32, borderRadius: 4, border: "1px solid #555" }}
                     />
                   ))}
@@ -360,41 +306,27 @@ export default function GamePage() {
         </div>
       </section>
 
-      <section style={{ display: "grid", placeItems: "center", gap: 4, marginTop: "clamp(36px, 11vh, 150px)" }}>
-        <div
-          style={{
-            display: "flex",
-            gap: "clamp(16px, 2.8vw, 40px)",
-            alignItems: "center",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            width: "100%",
-          }}
-        >
+      <section className="draw-area">
+        <div className="draw-layout">
           <button
             onClick={() => socket.emit("turn:draw", { gameId })}
-            disabled={!state || !isMyTurn || state.phase === "LOBBY" || needsEndOfPeriodChoice || pendingRound2Decision || pendingRoundStartPositionChoice}
-            style={{
-              width: cardWidth,
-              borderRadius: 12,
-              background: "#fff",
-              border: "2px solid #111827",
-              fontWeight: 600,
-              overflow: "hidden",
-              padding: 8,
-            }}
+            disabled={cardDisabled}
+            className="pile-card"
+            style={{ borderRadius: 12, background: "#fff", border: "2px solid #111827", fontWeight: 600, overflow: "hidden", padding: 8 }}
           >
-            <Image src={BACK_OF_CARD} alt="Draw pile" width={190} height={272} style={{ width: "100%", height: "auto", borderRadius: 8 }} />
-            <div style={{ fontSize: 12, marginTop: 6 }}>{state ? state.drawPile.length : 0} cards</div>
+            <Image src={BACK_OF_CARD} alt="Draw pile" width={190} height={272} sizes="(max-width: 767px) 50vw, 190px" priority style={{ width: "100%", height: "auto", borderRadius: 8 }} />
+            <div style={{ fontSize: 12, marginTop: 6, color: "#0f172a" }}>{state ? state.drawPile.length : 0} cards</div>
           </button>
           <div style={{ textAlign: "center" }}>
             <div style={{ marginBottom: 6, fontWeight: 600 }}>Discard</div>
-            <div style={{ width: cardWidth }}>
+            <div className="pile-card">
               <Image
                 src={getCardImage(topCard)}
                 alt={topCard ? topCard.name : "No card"}
                 width={190}
                 height={272}
+                sizes="(max-width: 767px) 50vw, 190px"
+                priority
                 style={{ width: "100%", height: "auto", borderRadius: 12, border: "2px solid #ccc" }}
               />
             </div>
@@ -408,6 +340,7 @@ export default function GamePage() {
               <select
                 value={state.gameMode}
                 onChange={(e) => socket.emit("game:setMode", { gameId, mode: e.target.value })}
+                className="touch-target"
                 style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #111" }}
               >
                 <option value="CLASSIC">Classic</option>
@@ -417,14 +350,8 @@ export default function GamePage() {
             <button
               onClick={() => socket.emit("game:start", { gameId })}
               disabled={!state || state.players.length < 2}
-              style={{
-                padding: "10px 18px",
-                borderRadius: 8,
-                border: "1px solid #111",
-                background: "#111",
-                color: "#fff",
-                fontWeight: 600,
-              }}
+              className="touch-target"
+              style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid #111", background: "#111", color: "#fff", fontWeight: 600 }}
             >
               Start Game
             </button>
@@ -432,8 +359,8 @@ export default function GamePage() {
         ) : null}
       </section>
 
-      <section style={{ display: "grid", gap: 4 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+      <section style={{ display: "grid", gap: 8 }}>
+        <div className="hand-header">
           <h3 style={{ margin: 0 }}>Your Hand {me ? `(${me.hand.length})` : ""}</h3>
           <h3 style={{ margin: 0 }}>Position: {me ? positionLabels[me.currentPosition] : "—"}</h3>
         </div>
@@ -444,31 +371,24 @@ export default function GamePage() {
                 {getBannerLabel(playerId)}
               </div>
             ) : null}
-            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(clamp(124px, 12.5vw, 190px), 1fr))", width: "100%" }}>
-            {me.hand.map((card) => (
-              <button
-                key={card.id}
-                onClick={() => socket.emit("turn:playCard", { gameId, cardId: card.id })}
-                disabled={!isMyTurn || state?.phase === "LOBBY" || needsEndOfPeriodChoice || pendingRound2Decision || pendingRoundStartPositionChoice}
-                style={{
-                  width: "100%",
-                  maxWidth: cardWidth,
-                  borderRadius: 12,
-                  border: "2px solid #111",
-                  background: "#fff",
-                  padding: 0,
-                  overflow: "hidden",
-                }}
-              >
-                <Image
-                  src={getCardImage(card)}
-                  alt={card.name}
-                  width={190}
-                  height={272}
-                  style={{ width: "100%", height: "auto", display: "block" }}
-                />
-              </button>
-            ))}
+            <div className="hand-row">
+              {me.hand.map((card) => (
+                <button
+                  key={card.id}
+                  onClick={() => socket.emit("turn:playCard", { gameId, cardId: card.id })}
+                  disabled={cardDisabled}
+                  style={{ borderRadius: 12, border: "2px solid #111", background: "#fff", padding: 0, overflow: "hidden" }}
+                >
+                  <Image
+                    src={getCardImage(card)}
+                    alt={card.name}
+                    width={190}
+                    height={272}
+                    sizes={CARD_IMAGE_SIZES}
+                    style={{ width: "100%", height: "auto", display: "block" }}
+                  />
+                </button>
+              ))}
             </div>
           </>
         ) : (
@@ -477,183 +397,92 @@ export default function GamePage() {
       </section>
 
       {pendingRound2Decision ? (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.58)", display: "grid", placeItems: "center", zIndex: 32, padding: 16 }}>
-          <div style={{ width: "min(92vw, 480px)", borderRadius: 14, border: "1px solid rgba(255,255,255,0.4)", background: "#0b1f3d", padding: 18, display: "grid", gap: 12 }}>
-            <h3 style={{ margin: 0 }}>Round 2 Coin Flip</h3>
-            <p style={{ margin: 0 }}>You won the coin flip. Choose whether to pick the starting position or defer the choice.</p>
-            <button onClick={() => socket.emit("round:coinWinnerDecision", { gameId, deferStartChoice: false })} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}>
-              I pick the starting position
-            </button>
-            <button onClick={() => socket.emit("round:coinWinnerDecision", { gameId, deferStartChoice: true })} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}>
-              Defer choice to opponent
-            </button>
-          </div>
-        </div>
+        <Modal zIndex={32}>
+          <h3 style={{ margin: 0 }}>Round 2 Coin Flip</h3>
+          <p style={{ margin: 0 }}>You won the coin flip. Choose whether to pick the starting position or defer the choice.</p>
+          <button onClick={() => socket.emit("round:coinWinnerDecision", { gameId, deferStartChoice: false })} className="touch-target" style={WHITE_BUTTON}>
+            I pick the starting position
+          </button>
+          <button onClick={() => socket.emit("round:coinWinnerDecision", { gameId, deferStartChoice: true })} className="touch-target" style={WHITE_BUTTON}>
+            Defer choice to opponent
+          </button>
+        </Modal>
       ) : null}
 
       {pendingRoundStartPositionChoice ? (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.58)", display: "grid", placeItems: "center", zIndex: 33, padding: 16 }}>
-          <div style={{ width: "min(92vw, 480px)", borderRadius: 14, border: "1px solid rgba(255,255,255,0.4)", background: "#0b1f3d", padding: 18, display: "grid", gap: 12 }}>
-            <h3 style={{ margin: 0 }}>Choose Round Start Position</h3>
-            <p style={{ margin: 0 }}>Pick the starting position for this round.</p>
-            <button onClick={() => socket.emit("round:startPosition", { gameId, position: "TOP" })} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}>
-              Choose Top
-            </button>
-            <button onClick={() => socket.emit("round:startPosition", { gameId, position: "BOTTOM" })} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}>
-              Choose Bottom
-            </button>
-            <button onClick={() => socket.emit("round:startPosition", { gameId, position: "NEUTRAL" })} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}>
-              Choose Neutral
-            </button>
-          </div>
-        </div>
+        <Modal zIndex={33}>
+          <h3 style={{ margin: 0 }}>Choose Round Start Position</h3>
+          <p style={{ margin: 0 }}>Pick the starting position for this round.</p>
+          <button onClick={() => socket.emit("round:startPosition", { gameId, position: "TOP" })} className="touch-target" style={WHITE_BUTTON}>
+            Choose Top
+          </button>
+          <button onClick={() => socket.emit("round:startPosition", { gameId, position: "BOTTOM" })} className="touch-target" style={WHITE_BUTTON}>
+            Choose Bottom
+          </button>
+          <button onClick={() => socket.emit("round:startPosition", { gameId, position: "NEUTRAL" })} className="touch-target" style={WHITE_BUTTON}>
+            Choose Neutral
+          </button>
+        </Modal>
       ) : null}
 
       {needsMatchResultPopup ? (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.58)",
-            display: "grid",
-            placeItems: "center",
-            zIndex: 36,
-            padding: 16,
-          }}
-        >
-          <div
-            style={{
-              width: "min(92vw, 420px)",
-              borderRadius: 14,
-              border: "1px solid rgba(255,255,255,0.4)",
-              background: "#0b1f3d",
-              padding: 18,
-              display: "grid",
-              gap: 12,
-            }}
-          >
-            <h3 style={{ margin: 0 }}>{matchResultLabel}</h3>
-            <button
-              onClick={() => setHasAcknowledgedMatchResult(true)}
-              style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
-            >
-              Okay
-            </button>
-          </div>
-        </div>
+        <Modal zIndex={36}>
+          <h3 style={{ margin: 0 }}>{matchResultLabel}</h3>
+          <button onClick={() => setHasAcknowledgedMatchResult(true)} className="touch-target" style={WHITE_BUTTON}>
+            Okay
+          </button>
+        </Modal>
       ) : null}
 
       {needsRematchAgreement && hasAcknowledgedMatchResult ? (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.58)",
-            display: "grid",
-            placeItems: "center",
-            zIndex: 35,
-            padding: 16,
-          }}
-        >
-          <div
-            style={{
-              width: "min(92vw, 520px)",
-              borderRadius: 14,
-              border: "1px solid rgba(255,255,255,0.4)",
-              background: "#0b1f3d",
-              padding: 18,
-              display: "grid",
-              gap: 12,
-            }}
-          >
-            <h3 style={{ margin: 0 }}>Game Over</h3>
-            {state?.gameMode === "THREE_ROUND" ? <p style={{ margin: 0 }}>Round wins: {state.players.map((p) => `${p.name} ${state.roundWins[p.id] ?? 0}`).join(" • ")}</p> : null}
-            {state?.isOvertime ? <p style={{ margin: 0 }}>Overtime active: first pin or player to use all cards wins the game.</p> : null}
-            <p style={{ margin: 0 }}>Do both players want a rematch?</p>
-            <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontSize: 13, opacity: 0.9 }}>Rematch agreement</div>
-              <div style={{ width: "100%", height: 12, borderRadius: 999, background: "rgba(255,255,255,0.2)", overflow: "hidden" }}>
-                <div
-                  style={{
-                    width: `${Math.min(100, (rematchVotesCount / 2) * 100)}%`,
-                    height: "100%",
-                    background: "#3bd37f",
-                    transition: "width 150ms ease",
-                  }}
-                />
-              </div>
-              <div style={{ fontWeight: 700 }}>{Math.min(rematchVotesCount, 2)}/2</div>
-            </div>
-
-            <div style={{ display: "grid", gap: 8 }}>
-              <button
-                onClick={() => socket.emit("game:requestRematch", { gameId })}
-                disabled={hasVotedForRematch}
-                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
-              >
-                {hasVotedForRematch ? "Waiting for opponent..." : "Rematch"}
-              </button>
-
-              <button
-                onClick={() => {
-                  socket.emit("game:end", { gameId });
+        <Modal zIndex={35}>
+          <h3 style={{ margin: 0 }}>Game Over</h3>
+          {state?.gameMode === "THREE_ROUND" ? <p style={{ margin: 0 }}>Round wins: {state.players.map((p) => `${p.name} ${state.roundWins[p.id] ?? 0}`).join(" • ")}</p> : null}
+          {state?.isOvertime ? <p style={{ margin: 0 }}>Overtime active: first pin or player to use all cards wins the game.</p> : null}
+          <p style={{ margin: 0 }}>Do both players want a rematch?</p>
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontSize: 13, opacity: 0.9 }}>Rematch agreement</div>
+            <div style={{ width: "100%", height: 12, borderRadius: 999, background: "rgba(255,255,255,0.2)", overflow: "hidden" }}>
+              <div
+                style={{
+                  width: `${Math.min(100, (rematchVotesCount / 2) * 100)}%`,
+                  height: "100%",
+                  background: "#3bd37f",
+                  transition: "width 150ms ease",
                 }}
-                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
-              >
-                End Game (Back to Menu)
-              </button>
+              />
             </div>
+            <div style={{ fontWeight: 700 }}>{Math.min(rematchVotesCount, 2)}/2</div>
           </div>
-        </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <button onClick={() => socket.emit("game:requestRematch", { gameId })} disabled={hasVotedForRematch} className="touch-target" style={WHITE_BUTTON}>
+              {hasVotedForRematch ? "Waiting for opponent..." : "Rematch"}
+            </button>
+
+            <button onClick={() => socket.emit("game:end", { gameId })} className="touch-target" style={WHITE_BUTTON}>
+              End Game (Back to Menu)
+            </button>
+          </div>
+        </Modal>
       ) : null}
 
       {needsEndOfPeriodChoice ? (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.58)",
-            display: "grid",
-            placeItems: "center",
-            zIndex: 30,
-            padding: 16,
-          }}
-        >
-          <div
-            style={{
-              width: "min(92vw, 480px)",
-              borderRadius: 14,
-              border: "1px solid rgba(255,255,255,0.4)",
-              background: "#0b1f3d",
-              padding: 18,
-              display: "grid",
-              gap: 12,
-            }}
-          >
-            <h3 style={{ margin: 0 }}>End of Period</h3>
-            <p style={{ margin: 0 }}>Choose the position for the next sequence.</p>
-            <div style={{ display: "grid", gap: 8 }}>
-              <button
-                onClick={() => chooseEndOfPeriodPosition("TOP")}
-                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
-              >
-                Choose Top
-              </button>
-              <button
-                onClick={() => chooseEndOfPeriodPosition("BOTTOM")}
-                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
-              >
-                Choose Bottom
-              </button>
-              <button
-                onClick={() => chooseEndOfPeriodPosition("NEUTRAL")}
-                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
-              >
-                Choose Neutral
-              </button>
-            </div>
+        <Modal>
+          <h3 style={{ margin: 0 }}>End of Period</h3>
+          <p style={{ margin: 0 }}>Choose the position for the next sequence.</p>
+          <div style={{ display: "grid", gap: 8 }}>
+            <button onClick={() => chooseEndOfPeriodPosition("TOP")} className="touch-target" style={WHITE_BUTTON}>
+              Choose Top
+            </button>
+            <button onClick={() => chooseEndOfPeriodPosition("BOTTOM")} className="touch-target" style={WHITE_BUTTON}>
+              Choose Bottom
+            </button>
+            <button onClick={() => chooseEndOfPeriodPosition("NEUTRAL")} className="touch-target" style={WHITE_BUTTON}>
+              Choose Neutral
+            </button>
           </div>
-        </div>
+        </Modal>
       ) : null}
     </div>
   );
