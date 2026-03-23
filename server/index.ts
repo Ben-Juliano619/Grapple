@@ -28,7 +28,7 @@ const io = new Server(server, {
 type GameId = string;
 const games = new Map<GameId, ReturnType<typeof createGameState>>();
 const gameSessions = new Map<GameId, GameSessionState>();
-const MAX_PLAYERS = 4;
+const MAX_PLAYERS = 2;
 
 function generateSixDigitGameId() {
   return Math.floor(100000 + Math.random() * 900000).toString();
