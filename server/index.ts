@@ -17,15 +17,65 @@ const app = express();
 const server = http.createServer(app);
 const port = Number(process.env.PORT || 3001);
 const isProduction = process.env.NODE_ENV === "production";
-const clientOrigin = isProduction ? process.env.CLIENT_URL || "https://grapplewrestlingcardgame.com" : "*";
+const configuredOrigins = (process.env.CLIENT_URL ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-app.use((_, res, next) => {
-  res.header("Access-Control-Allow-Origin", clientOrigin);
+function isLanLikeHost(hostname: string) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".local") || /^\d+\.\d+\.\d+\.\d+$/.test(hostname);
+}
+
+function isAllowedOrigin(origin?: string) {
+  if (!origin) return true;
+  if (configuredOrigins.includes(origin)) return true;
+
+  if (!isProduction) {
+    try {
+      const { protocol, hostname } = new URL(origin);
+      return (protocol === "http:" || protocol === "https:") && isLanLikeHost(hostname);
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const requestOrigin = typeof origin === "string" ? origin : undefined;
+
+  if (isAllowedOrigin(requestOrigin)) {
+    if (requestOrigin) {
+      res.header("Access-Control-Allow-Origin", requestOrigin);
+      res.header("Vary", "Origin");
+    }
+
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  }
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
   next();
 });
 
 const io = new Server(server, {
-  cors: { origin: clientOrigin },
+  cors: {
+    origin(origin, callback) {
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error("Origin not allowed by CORS"));
+    },
+    credentials: true,
+    methods: ["GET", "POST"],
+  },
 });
 
 type GameId = string;
@@ -357,5 +407,5 @@ setInterval(() => {
 
 server.listen(port, () => {
   console.log(`Server running on :${port}`);
-  console.log(`Socket.IO CORS origin: ${clientOrigin}`);
+  console.log(`Socket.IO CORS origins: ${configuredOrigins.length ? configuredOrigins.join(", ") : isProduction ? "(none configured)" : "LAN/localhost development origins"}`);
 });
