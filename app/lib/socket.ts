@@ -1,23 +1,12 @@
-// app/lib/socket.ts
 import { io, type Socket } from "socket.io-client";
+import { resolveSocketUrl } from "./network";
 
 let socket: Socket | null = null;
-
-function resolveSocketUrl() {
-  const localSocketUrl = "http://localhost:3001";
-  const productionFallbackUrl = "https://grapplewrestlingcardgame.com";
-  const useLocalSocket = process.env.NEXT_PUBLIC_USE_LOCAL_SOCKET === "true";
-  const isProduction = process.env.NODE_ENV === "production";
-
-  if (useLocalSocket) return localSocketUrl;
-  if (!isProduction) return localSocketUrl;
-  return process.env.NEXT_PUBLIC_SOCKET_URL || productionFallbackUrl;
-}
 
 export function getSocket() {
   if (!socket) {
     const socketUrl = resolveSocketUrl();
-    console.info(`[socket] Connecting to ${socketUrl}`);
+    console.info(`[socket] Connecting to ${socketUrl || "same-origin"}`);
     socket = io(socketUrl, {
       transports: ["websocket"],
       autoConnect: true,
@@ -25,6 +14,7 @@ export function getSocket() {
       reconnectionAttempts: Infinity,
       reconnectionDelay: 250,
       reconnectionDelayMax: 2000,
+      withCredentials: true,
     });
   }
   return socket;

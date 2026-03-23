@@ -1,10 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getSocket } from "./lib/socket";
 import { createNewGameSession, readGameSessionCookie } from "./lib/session";
 import { getActiveGameId, resetGameSessionState } from "./lib/gameSessionState";
+import { getApiUrl } from "./lib/network";
+
+const inputStyle: CSSProperties = {
+  width: "100%",
+  boxSizing: "border-box",
+  minHeight: 46,
+  padding: "12px 14px",
+  borderRadius: 10,
+  border: "1px solid rgba(255,255,255,0.5)",
+  background: "rgba(255,255,255,0.08)",
+  color: "#fff",
+  fontSize: 16,
+};
+
+const buttonStyle: CSSProperties = {
+  minHeight: 46,
+  padding: "12px 14px",
+  borderRadius: 10,
+  fontWeight: 700,
+  cursor: "pointer",
+  fontSize: 16,
+};
 
 export default function Home() {
   const router = useRouter();
@@ -34,7 +56,9 @@ export default function Home() {
 
       try {
         const query = new URLSearchParams(existing);
-        const response = await fetch(`http://localhost:3001/api/session/validate?${query.toString()}`);
+        const response = await fetch(getApiUrl(`/api/session/validate?${query.toString()}`), {
+          credentials: "include",
+        });
         if (!response.ok) {
           resetGameSessionState({ clearSessionCookie: true });
           return;
@@ -139,10 +163,10 @@ export default function Home() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         display: "grid",
         placeItems: "center",
-        padding: "clamp(16px, 3vw, 36px)",
+        padding: "max(16px, env(safe-area-inset-top)) clamp(14px, 3vw, 36px) max(16px, env(safe-area-inset-bottom))",
         fontFamily: "system-ui",
         background:
           "radial-gradient(circle at center, #922 0%, #7d1f1f 30%, #4a1111 68%, #240808 100%)",
@@ -150,24 +174,24 @@ export default function Home() {
     >
       <main
         style={{
-          width: "min(92vw, 640px)",
+          width: "min(100%, 640px)",
           borderRadius: 26,
           border: "2px solid rgba(255,255,255,0.25)",
           background:
             "linear-gradient(145deg, rgba(35, 5, 8, 0.95), rgba(80, 14, 18, 0.95)), repeating-linear-gradient(45deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 2px, transparent 2px, transparent 10px)",
           boxShadow: "0 30px 60px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.12)",
-          padding: "clamp(20px, 4vw, 38px)",
+          padding: "clamp(16px, 4vw, 38px)",
           color: "#fff",
           display: "grid",
-          gap: 18,
+          gap: 16,
           textAlign: "center",
         }}
       >
         <div>
-          <h1 style={{ margin: 0, fontSize: "clamp(2rem, 6vw, 3.4rem)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+          <h1 style={{ margin: 0, fontSize: "clamp(2rem, 7vw, 3.4rem)", letterSpacing: "0.06em", textTransform: "uppercase", lineHeight: 1.1 }}>
             Grapple
           </h1>
-          <p style={{ margin: "8px 0 0", opacity: 0.9 }}>Deal. Wrestle. Outsmart. Win the mat.</p>
+          <p style={{ margin: "8px 0 0", opacity: 0.9, fontSize: "clamp(0.95rem, 3.2vw, 1.05rem)" }}>Deal. Wrestle. Outsmart. Win the mat.</p>
         </div>
 
         <div style={{ display: "grid", gap: 12, width: "100%" }}>
@@ -175,32 +199,22 @@ export default function Home() {
             value={playerName}
             onChange={(e) => setPlayerName(e.target.value)}
             placeholder="Player name"
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.5)",
-              background: "rgba(255,255,255,0.08)",
-              color: "#fff",
-            }}
+            autoComplete="nickname"
+            style={inputStyle}
           />
           <button
             onClick={createGame}
             disabled={!isSessionReady}
             style={{
-              padding: "12px 14px",
-              borderRadius: 10,
+              ...buttonStyle,
               border: "1px solid #fff",
               background: "#f8f8f8",
               color: "#320a0a",
-              fontWeight: 700,
-              cursor: "pointer",
+              opacity: isSessionReady ? 1 : 0.65,
             }}
           >
             Create Game
           </button>
-
         </div>
 
         <div style={{ display: "grid", gap: 10, width: "100%" }}>
@@ -208,34 +222,26 @@ export default function Home() {
             value={gameCode}
             onChange={(e) => setGameCode(e.target.value)}
             placeholder="Enter 6-digit game id"
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.5)",
-              background: "rgba(255,255,255,0.08)",
-              color: "#fff",
-            }}
+            inputMode="numeric"
+            style={inputStyle}
           />
           <button
             onClick={joinGame}
             disabled={!isSessionReady}
             style={{
-              padding: "12px 14px",
-              borderRadius: 10,
+              ...buttonStyle,
               border: "1px solid rgba(255,255,255,0.8)",
               background: "rgba(255,255,255,0.15)",
               color: "#fff",
-              fontWeight: 700,
-              cursor: "pointer",
+              opacity: isSessionReady ? 1 : 0.65,
             }}
           >
             Join Game
           </button>
         </div>
 
-        {errorMessage ? <p style={{ color: "#ffd1d1", margin: 0 }}>{errorMessage}</p> : null}
+        {!isSessionReady ? <p style={{ margin: 0, opacity: 0.85 }}>Preparing your session…</p> : null}
+        {errorMessage ? <p style={{ color: "#ffd1d1", margin: 0, overflowWrap: "anywhere" }}>{errorMessage}</p> : null}
       </main>
     </div>
   );
