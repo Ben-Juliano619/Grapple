@@ -11,12 +11,6 @@
     linear-gradient(180deg, #2d5c96 0%, #1f4170 100%);
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .game-page {
-    background-attachment: fixed;
-  }
-}
-
 .game-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);

@@ -50,6 +50,7 @@ const positionLabels: Record<Position, string> = {
 
 const BACK_OF_CARD = "/img/cards/back_of_card.png";
 const RULES_CARDS = ["/img/cards/rules1.png", "/img/cards/rules2.png", "/img/cards/rules3.png"];
+const CARD_IMAGE_SIZES = "(max-width: 767px) 58vw, (max-width: 1023px) 25vw, 190px";
 const WHITE_BUTTON: CSSProperties = {
   padding: "10px 12px",
   borderRadius: 8,
@@ -225,7 +226,7 @@ export default function GamePage() {
               });
             }}
             className="touch-target"
-            style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #111", background: "#fff", fontWeight: 600, cursor: "pointer" }}
+            style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #111", background: "#fff", color: "#111", fontWeight: 600, cursor: "pointer" }}
           >
             {showRules ? "Hide Rules" : "Rules"}
           </button>
@@ -241,6 +242,8 @@ export default function GamePage() {
             width={600}
             height={860}
             sizes="(max-width: 767px) 92vw, 600px"
+            unoptimized
+            priority
             style={{ width: "min(100%, 600px)", height: "auto", borderRadius: 10, border: "1px solid #ccc" }}
           />
           <div className="rules-controls">
@@ -289,6 +292,7 @@ export default function GamePage() {
                       width={22}
                       height={32}
                       sizes="22px"
+                      unoptimized
                       style={{ width: 22, height: 32, borderRadius: 4, border: "1px solid #555" }}
                     />
                   ))}
@@ -307,7 +311,7 @@ export default function GamePage() {
             className="pile-card"
             style={{ borderRadius: 12, background: "#fff", border: "2px solid #111827", fontWeight: 600, overflow: "hidden", padding: 8 }}
           >
-            <Image src={BACK_OF_CARD} alt="Draw pile" width={190} height={272} sizes="(max-width: 767px) 50vw, 190px" style={{ width: "100%", height: "auto", borderRadius: 8 }} />
+            <Image src={BACK_OF_CARD} alt="Draw pile" width={190} height={272} sizes="(max-width: 767px) 50vw, 190px" unoptimized priority style={{ width: "100%", height: "auto", borderRadius: 8 }} />
             <div style={{ fontSize: 12, marginTop: 6, color: "#0f172a" }}>{state ? state.drawPile.length : 0} cards</div>
           </button>
           <div style={{ textAlign: "center" }}>
@@ -319,6 +323,8 @@ export default function GamePage() {
                 width={190}
                 height={272}
                 sizes="(max-width: 767px) 50vw, 190px"
+                unoptimized
+                priority
                 style={{ width: "100%", height: "auto", borderRadius: 12, border: "2px solid #ccc" }}
               />
             </div>
@@ -376,7 +382,9 @@ export default function GamePage() {
                     alt={card.name}
                     width={190}
                     height={272}
-                    sizes="(max-width: 767px) 58vw, (max-width: 1023px) 25vw, 190px"
+                    sizes={CARD_IMAGE_SIZES}
+                    unoptimized
+                    loading="eager"
                     style={{ width: "100%", height: "auto", display: "block" }}
                   />
                 </button>
