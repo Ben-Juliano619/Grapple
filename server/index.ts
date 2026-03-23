@@ -260,15 +260,9 @@ io.on("connection", (socket) => {
     const playerId = socket.data.playerId as string;
     if (!isPlayerInGame(state, playerId)) return socket.emit("game:error", "Not in this game");
 
-    state.phase = "LOBBY";
-    state.pendingEndOfPeriodPlayerId = undefined;
-    state.pendingRound2DecisionPlayerId = undefined;
-    state.pendingRound2StartPositionChooserPlayerId = undefined;
-    state.pendingRound3StartPositionChooserPlayerId = undefined;
-    state.isOvertime = false;
-    state.rematchVotes = [];
-    state.roundEndsAt = undefined;
-    io.to(gameId).emit("game:state", state);
+    io.to(gameId).emit("game:ended");
+    games.delete(gameId);
+    gameSessions.delete(gameId);
   });
 });
 
