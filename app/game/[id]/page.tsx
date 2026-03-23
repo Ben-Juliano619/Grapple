@@ -583,14 +583,6 @@ export default function GamePage() {
                 {hasVotedForRematch ? "Waiting for opponent..." : "Rematch"}
               </button>
 
-              <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-                Game options
-                <select disabled style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", background: "#f5f5f5" }}>
-                  <option>Classic</option>
-                  <option>3 two minute rounds</option>
-                </select>
-              </label>
-
               <button
                 onClick={() => {
                   socket.emit("game:end", { gameId });
