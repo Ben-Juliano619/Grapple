@@ -248,7 +248,6 @@ export default function GamePage() {
         ) : null}
         <div style={{ textAlign: "right", display: "grid", gap: 2, justifyItems: "end" }}>
           <div>
-            <div>Position: {me ? positionLabels[me.currentPosition] : "—"}</div>
             <div>{currentPlayer ? `Turn: ${currentPlayer.name}` : "Waiting for players..."}</div>
             {state?.gameMode === "THREE_ROUND" ? <div>Round Timer: {roundTimerLabel}</div> : null}
           </div>
@@ -434,10 +433,12 @@ export default function GamePage() {
       </section>
 
       <section style={{ display: "grid", gap: 4 }}>
-        <h3 style={{ margin: 0 }}>Your Hand {me ? `(${me.hand.length})` : ""}</h3>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+          <h3 style={{ margin: 0 }}>Your Hand {me ? `(${me.hand.length})` : ""}</h3>
+          <h3 style={{ margin: 0 }}>Position: {me ? positionLabels[me.currentPosition] : "—"}</h3>
+        </div>
         {me ? (
           <>
-            <div style={{ fontSize: 13 }}>Your position: {positionLabels[me.currentPosition]}</div>
             {state?.gameMode === "THREE_ROUND" && playerId && state.playerBanners[playerId] ? (
               <div style={{ display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, color: "#fff", background: state.playerBanners[playerId] === "GREEN" ? "#16a34a" : "#dc2626" }}>
                 {getBannerLabel(playerId)}
