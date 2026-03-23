@@ -75,9 +75,15 @@ export default function GamePage() {
 
     const onState = (s: GameState) => setState(s);
     const onError = (e: unknown) => setError(String(e));
+    const onGameEnded = () => {
+      setState(null);
+      setHasAcknowledgedMatchResult(false);
+      router.push("/");
+    };
 
     socket.on("game:state", onState);
     socket.on("game:error", onError);
+    socket.on("game:ended", onGameEnded);
 
     const join = () => {
       socket.emit("game:join", { gameId, playerName, sessionId }, (response: { ok: boolean; error?: string; playerId?: string }) => {
@@ -95,9 +101,10 @@ export default function GamePage() {
     return () => {
       socket.off("game:state", onState);
       socket.off("game:error", onError);
+      socket.off("game:ended", onGameEnded);
       socket.off("connect", join);
     };
-  }, [socket, gameId]);
+  }, [socket, gameId, router]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
@@ -586,7 +593,6 @@ export default function GamePage() {
               <button
                 onClick={() => {
                   socket.emit("game:end", { gameId });
-                  router.push("/");
                 }}
                 style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
               >
