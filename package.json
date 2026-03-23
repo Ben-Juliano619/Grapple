@@ -3,6 +3,9 @@
     "dev": "next dev",
     "dev:server": "tsx server/index.ts",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\"",
+    "build": "next build",
+    "start": "next start",
+    "server": "tsx server/index.ts",
     "test": "node --import tsx --test server/**/*.test.ts app/lib/**/*.test.ts"
   },
   "dependencies": {

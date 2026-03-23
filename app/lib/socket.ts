@@ -3,9 +3,22 @@ import { io, type Socket } from "socket.io-client";
 
 let socket: Socket | null = null;
 
+function resolveSocketUrl() {
+  const localSocketUrl = "http://localhost:3001";
+  const productionFallbackUrl = "https://grapplewrestlingcardgame.com";
+  const useLocalSocket = process.env.NEXT_PUBLIC_USE_LOCAL_SOCKET === "true";
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (useLocalSocket) return localSocketUrl;
+  if (!isProduction) return localSocketUrl;
+  return process.env.NEXT_PUBLIC_SOCKET_URL || productionFallbackUrl;
+}
+
 export function getSocket() {
   if (!socket) {
-    socket = io("http://localhost:3001", {
+    const socketUrl = resolveSocketUrl();
+    console.info(`[socket] Connecting to ${socketUrl}`);
+    socket = io(socketUrl, {
       transports: ["websocket"],
       autoConnect: true,
       reconnection: true,

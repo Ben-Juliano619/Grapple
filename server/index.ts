@@ -15,14 +15,17 @@ import {
 
 const app = express();
 const server = http.createServer(app);
+const port = Number(process.env.PORT || 3001);
+const isProduction = process.env.NODE_ENV === "production";
+const clientOrigin = isProduction ? process.env.CLIENT_URL || "https://grapplewrestlingcardgame.com" : "*";
 
 app.use((_, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Origin", clientOrigin);
   next();
 });
 
 const io = new Server(server, {
-  cors: { origin: "*" }, // lock down later
+  cors: { origin: clientOrigin },
 });
 
 type GameId = string;
@@ -352,4 +355,7 @@ setInterval(() => {
   }
 }, CLEANUP_INTERVAL_MS);
 
-server.listen(3001, () => console.log("Server running on :3001"));
+server.listen(port, () => {
+  console.log(`Server running on :${port}`);
+  console.log(`Socket.IO CORS origin: ${clientOrigin}`);
+});
