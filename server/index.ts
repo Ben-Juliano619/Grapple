@@ -68,8 +68,11 @@ function isReconnectableSession(gameId: string, sessionId: string) {
 
   const playerId = sessionState.sessionToPlayerId.get(sessionId);
   if (!playerId) return false;
-  if (state.phase === "ENDED") return false;
-  return isPlayerInGame(state, playerId);
+  if (state.phase === "ENDED" || !isPlayerInGame(state, playerId)) {
+    sessionState.sessionToPlayerId.delete(sessionId);
+    return false;
+  }
+  return true;
 }
 
 function markConnected(gameId: string, socketId: string) {
@@ -136,7 +139,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      if (sessionId && getResumePlayerId(gameId, sessionId)) {
+      if (sessionId && isReconnectableSession(gameId, sessionId)) {
         callback?.({ ok: true });
         return;
       }
