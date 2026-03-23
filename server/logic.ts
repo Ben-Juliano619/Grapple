@@ -249,7 +249,33 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
     }
 
     if (state.rematchVotes.length >= 2) {
-      state.start();
+      state.phase = "LOBBY";
+      state.drawPile = [];
+      state.discardPile = [];
+      state.playedPile = [];
+      state.currentTurnIndex = 0;
+      state.currentRound = 0;
+      state.roundEndsAt = undefined;
+      state.roundStartChooserPlayerId = undefined;
+      state.round2CoinFlipWinnerPlayerId = undefined;
+      state.pendingRound2DecisionPlayerId = undefined;
+      state.pendingRound2StartPositionChooserPlayerId = undefined;
+      state.pendingRound3StartPositionChooserPlayerId = undefined;
+      state.gameWinnerPlayerId = undefined;
+      state.gameResult = undefined;
+      state.isOvertime = false;
+      state.pendingEndOfPeriodPlayerId = undefined;
+      state.playerBanners = {};
+      state.roundWins = {};
+      state.rematchVotes = [];
+      for (const player of state.players) {
+        player.hand = [];
+        player.score = 0;
+        player.penaltyPoints = 0;
+        player.currentPosition = "NEUTRAL";
+        player.previousPosition = undefined;
+        player.canCounterTakedown = false;
+      }
     }
 
     return { ok: true };
