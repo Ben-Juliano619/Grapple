@@ -2,7 +2,8 @@
   "scripts": {
     "dev": "next dev",
     "dev:server": "tsx server/index.ts",
-    "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\""
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\"",
+    "test": "node --import tsx --test server/**/*.test.ts app/lib/**/*.test.ts"
   },
   "dependencies": {
     "express": "^5.2.1",

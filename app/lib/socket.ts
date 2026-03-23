@@ -16,3 +16,10 @@ export function getSocket() {
   }
   return socket;
 }
+
+export function resetSocket() {
+  if (!socket) return;
+  socket.removeAllListeners();
+  socket.disconnect();
+  socket = null;
+}

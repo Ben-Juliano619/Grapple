@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type { Card, Position } from "../../../shared/types";
 import { getSocket } from "../../lib/socket";
-import { getOrCreateSessionId } from "../../lib/session";
+import { ensureSessionForGame } from "../../lib/session";
+import { resetGameSessionState, setActiveGameId } from "../../lib/gameSessionState";
 
 type PlayerState = {
   id: string;
@@ -70,14 +71,16 @@ export default function GamePage() {
   const [hasAcknowledgedMatchResult, setHasAcknowledgedMatchResult] = useState(false);
 
   useEffect(() => {
+    setActiveGameId(gameId);
     const playerName = window.localStorage.getItem("grapple.playerName") ?? "Player";
-    const sessionId = getOrCreateSessionId();
+    const sessionId = ensureSessionForGame(gameId);
 
     const onState = (s: GameState) => setState(s);
     const onError = (e: unknown) => setError(String(e));
     const onGameEnded = () => {
       setState(null);
       setHasAcknowledgedMatchResult(false);
+      resetGameSessionState();
       router.push("/");
     };
 

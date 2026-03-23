@@ -1,30 +1,73 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { io } from "socket.io-client";
-import { getOrCreateSessionId } from "./lib/session";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { getSocket } from "./lib/socket";
+import { createNewGameSession, readGameSessionCookie } from "./lib/session";
+import { getActiveGameId, resetGameSessionState } from "./lib/gameSessionState";
 
 export default function Home() {
   const router = useRouter();
-  const socket = useMemo(() => io("http://localhost:3001", { transports: ["websocket"] }), []);
+  const pathname = usePathname();
 
   const [gameCode, setGameCode] = useState("");
   const [playerName, setPlayerName] = useState("Player");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isSessionReady, setIsSessionReady] = useState(false);
 
   useEffect(() => {
+    let isActive = true;
+    resetGameSessionState();
     const storedName = window.localStorage.getItem("grapple.playerName");
     if (storedName) {
       setPlayerName(storedName);
     }
-    getOrCreateSessionId();
-    return () => {
-      socket.disconnect();
+
+    const validateSession = async () => {
+      const existing = readGameSessionCookie();
+      if (!existing) {
+        if (isActive) {
+          setIsSessionReady(true);
+        }
+        return;
+      }
+
+      try {
+        const query = new URLSearchParams(existing);
+        const response = await fetch(`http://localhost:3001/api/session/validate?${query.toString()}`);
+        if (!response.ok) {
+          resetGameSessionState({ clearSessionCookie: true });
+          return;
+        }
+
+        const result = (await response.json()) as { ok: boolean; valid?: boolean };
+        if (!isActive) return;
+        if (!result.ok || !result.valid) {
+          resetGameSessionState({ clearSessionCookie: true });
+        }
+      } catch {
+        resetGameSessionState({ clearSessionCookie: true });
+      } finally {
+        if (isActive) {
+          setIsSessionReady(true);
+        }
+      }
     };
-  }, [socket]);
+
+    setIsSessionReady(false);
+    void validateSession();
+
+    return () => {
+      isActive = false;
+    };
+  }, [pathname]);
 
   function createGame() {
+    if (!isSessionReady) {
+      setErrorMessage("Preparing session, please try again.");
+      return;
+    }
+
     const trimmedPlayerName = playerName.trim();
     if (!trimmedPlayerName) {
       setErrorMessage("Player name cannot be blank");
@@ -33,14 +76,18 @@ export default function Home() {
 
     window.localStorage.setItem("grapple.playerName", trimmedPlayerName);
     setErrorMessage("");
+    resetGameSessionState({ clearSessionCookie: true });
+    const socket = getSocket();
     socket.emit(
       "game:create",
       null,
       (response: { ok: boolean; gameId?: string; error?: string }) => {
         if (response.ok && response.gameId) {
+          createNewGameSession(response.gameId);
           router.push(`/game/${response.gameId}`);
           return;
         }
+        resetGameSessionState({ clearSessionCookie: true });
         if (response.error) {
           setErrorMessage(response.error);
         }
@@ -60,14 +107,25 @@ export default function Home() {
       setErrorMessage("Player name cannot be blank");
       return;
     }
+    if (!isSessionReady) {
+      setErrorMessage("Preparing session, please try again.");
+      return;
+    }
 
     setErrorMessage("");
-    const sessionId = getOrCreateSessionId();
+    if (getActiveGameId()) {
+      resetGameSessionState();
+    }
+    const socket = getSocket();
+    const currentSession = readGameSessionCookie();
+    const sessionId =
+      currentSession?.gameId === trimmedCode ? currentSession.sessionId : createNewGameSession(trimmedCode).sessionId;
     socket.emit(
       "game:validateJoin",
       { gameId: trimmedCode, playerName: trimmedPlayerName, sessionId },
       (response: { ok: boolean; error?: string }) => {
         if (!response.ok) {
+          resetGameSessionState({ clearSessionCookie: true });
           setErrorMessage(response.error ?? "Unable to join game");
           return;
         }
@@ -129,6 +187,7 @@ export default function Home() {
           />
           <button
             onClick={createGame}
+            disabled={!isSessionReady}
             style={{
               padding: "12px 14px",
               borderRadius: 10,
@@ -161,6 +220,7 @@ export default function Home() {
           />
           <button
             onClick={joinGame}
+            disabled={!isSessionReady}
             style={{
               padding: "12px 14px",
               borderRadius: 10,

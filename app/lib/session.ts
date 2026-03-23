@@ -1,4 +1,10 @@
 const COOKIE_NAME = "grapple.sessionId";
+const COOKIE_MAX_AGE_SECONDS = 31536000;
+
+export type GameSessionCookie = {
+  gameId: string;
+  sessionId: string;
+};
 
 function getCrypto() {
   if (typeof globalThis === "undefined") return null;
@@ -40,14 +46,49 @@ function readCookie(name: string) {
 
 function writeCookie(name: string, value: string) {
   if (typeof document === "undefined") return;
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=31536000; samesite=lax`;
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${COOKIE_MAX_AGE_SECONDS}; samesite=lax`;
 }
 
-export function getOrCreateSessionId() {
-  const fromCookie = readCookie(COOKIE_NAME);
-  if (fromCookie) return fromCookie;
+function deleteCookie(name: string) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${name}=; path=/; max-age=0; samesite=lax`;
+}
 
+function parseCookieValue(value: string): GameSessionCookie | null {
+  try {
+    const parsed = JSON.parse(value) as Partial<GameSessionCookie>;
+    if (!parsed || typeof parsed !== "object") return null;
+    if (typeof parsed.gameId !== "string" || typeof parsed.sessionId !== "string") return null;
+    if (!parsed.gameId.trim() || !parsed.sessionId.trim()) return null;
+    return { gameId: parsed.gameId.trim(), sessionId: parsed.sessionId.trim() };
+  } catch {
+    return null;
+  }
+}
+
+export function readGameSessionCookie(): GameSessionCookie | null {
+  const raw = readCookie(COOKIE_NAME);
+  if (!raw) return null;
+  return parseCookieValue(raw);
+}
+
+export function writeGameSessionCookie(session: GameSessionCookie) {
+  writeCookie(COOKIE_NAME, JSON.stringify(session));
+}
+
+export function clearGameSessionCookie() {
+  deleteCookie(COOKIE_NAME);
+}
+
+export function createNewGameSession(gameId: string): GameSessionCookie {
   const generated = createSessionId();
-  writeCookie(COOKIE_NAME, generated);
-  return generated;
+  const next = { gameId, sessionId: generated };
+  writeGameSessionCookie(next);
+  return next;
+}
+
+export function ensureSessionForGame(gameId: string) {
+  const existing = readGameSessionCookie();
+  if (existing?.gameId === gameId) return existing.sessionId;
+  return createNewGameSession(gameId).sessionId;
 }
