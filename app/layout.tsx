@@ -27,6 +27,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           input, textarea { -webkit-user-select: text; user-select: text; }
           img { -webkit-user-drag: none; -webkit-touch-callout: none; }
           button, a, select { touch-action: manipulation; }
+          /* Portrait only on phones. The iOS app is locked to portrait; Safari can't
+             lock orientation for a website, so cover the page when a phone is
+             sideways (short landscape screens only; tablets/desktop unaffected). */
+          .rotate-notice { display: none; }
+          @media (orientation: landscape) and (max-height: 500px) {
+            .rotate-notice {
+              position: fixed; inset: 0; z-index: 1000;
+              display: grid; place-content: center; justify-items: center; gap: 12px;
+              background: #031c92; color: #fff; text-align: center;
+              font: 600 18px system-ui, -apple-system, sans-serif;
+            }
+            .rotate-notice svg { width: 56px; height: 56px; }
+          }
           @keyframes grappleSceneIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
         `}</style>
       </head>
@@ -38,6 +51,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         }}
       >
         <NativeSetup />
+        <div className="rotate-notice" role="alert">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="7" y="2" width="10" height="20" rx="2" />
+            <path d="M11 18h2" />
+          </svg>
+          <div>Rotate your phone to portrait to play</div>
+        </div>
         {children}
       </body>
     </html>
