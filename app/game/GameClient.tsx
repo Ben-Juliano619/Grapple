@@ -14,17 +14,18 @@ import { resultFeedback, shareGameCode, tapFeedback, turnFeedback } from "../lib
 type PlayerState = {
   id: string;
   name: string;
+  // Only your own hand is sent; for the opponent the server sends just the count.
   hand: Card[];
+  handCount: number;
   score: number;
   penaltyPoints: number;
   currentPosition: Position;
-  previousPosition?: Position;
 };
 
 type GameState = {
   id: string;
   players: PlayerState[];
-  drawPile: Card[];
+  drawPileCount: number;
   discardPile: Card[];
   currentTurnIndex: number;
   phase: "LOBBY" | "FIND_START_NEUTRAL" | "PLAY" | "ENDED";
@@ -298,7 +299,7 @@ export default function GameClient() {
               <div className={styles.meta}>
                 {opponent.penaltyPoints > 0 ? <span className={`${styles.badge} ${styles.badgeWarn}`}>Penalty {opponent.penaltyPoints}</span> : null}
                 <span>
-                  {opponent.hand.length} {opponent.hand.length === 1 ? "card" : "cards"}
+                  {opponent.handCount} {opponent.handCount === 1 ? "card" : "cards"}
                 </span>
               </div>
             ) : null}
@@ -360,10 +361,10 @@ export default function GameClient() {
                   socket.emit("turn:draw", { gameId });
                 }}
                 disabled={!canAct}
-                aria-label={`Draw a card (${state.drawPile.length} left)`}
+                aria-label={`Draw a card (${state.drawPileCount} left)`}
               >
                 <Image src={BACK_OF_CARD} alt="Draw pile" width={190} height={262} loading="eager" />
-                <span className={styles.pileCount}>{state.drawPile.length}</span>
+                <span className={styles.pileCount}>{state.drawPileCount}</span>
               </button>
               <div className={styles.pileLabel}>Draw</div>
             </div>

@@ -29,3 +29,9 @@ The app automatically connects to the socket server on port 3001 of the same mac
 4. In the review notes, mention **Practice vs Computer** so the reviewer can play without a second person.
 
 Regenerate the icon/launch screen after changing the logo: `python3 scripts/make_ios_assets.py && npm run ios:sync`.
+
+### Security / pen testing
+
+The game server (`server/index.ts`, `server/security.ts`) validates every socket message, only lets players act in games they've joined, sends each player only their own hand, and rate-limits per IP. `server/security.test.ts` attacks a real server instance (junk payloads, oversized messages, outsiders acting on a game, floods).
+
+Testing from one machine will hit the per-IP limits (that's expected). To raise them temporarily, set `RATE_LIMIT_MULTIPLIER=100` on the server and remove it afterwards.
