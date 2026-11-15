@@ -55,6 +55,20 @@ function getCardImage(card: Card | null): string {
   return `/img/cards/${card.imageFile}`;
 }
 
+// Phones get a tighter layout: smaller piles, a swipeable hand and no big
+// spacers, so the whole table fits on one screen without scrolling.
+function useIsCompact() {
+  const [isCompact, setIsCompact] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 640px)");
+    const update = () => setIsCompact(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  return isCompact;
+}
+
 export default function GameClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -69,6 +83,7 @@ export default function GameClient() {
   const [rulesIndex, setRulesIndex] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [hasAcknowledgedMatchResult, setHasAcknowledgedMatchResult] = useState(false);
+  const isCompact = useIsCompact();
 
   useEffect(() => {
     if (!gameId) {
@@ -145,7 +160,8 @@ export default function GameClient() {
   const currentPlayer = state?.players[state.currentTurnIndex];
   const isMyTurn = Boolean(currentPlayer && currentPlayer.id === playerId);
   const topCard = state?.discardPile[state.discardPile.length - 1] ?? null;
-  const cardWidth = "clamp(124px, 12.5vw, 190px)";
+  const cardWidth = isCompact ? "min(30vw, 140px)" : "clamp(124px, 12.5vw, 190px)";
+  const handCardWidth = isCompact ? "min(31vw, 150px)" : cardWidth;
   const needsEndOfPeriodChoice = Boolean(state && playerId && state.pendingEndOfPeriodPlayerId === playerId);
   const rematchVotesCount = state?.rematchVotes.length ?? 0;
   const hasVotedForRematch = Boolean(playerId && state?.rematchVotes.includes(playerId));
@@ -191,17 +207,18 @@ export default function GameClient() {
         display: "grid",
         gap: 4,
         alignContent: "start",
-        minHeight: "100vh",
+        minHeight: isCompact ? "100dvh" : "100vh",
         background:
           "radial-gradient(circle at 50% 44%, rgba(196, 38, 38, 0.5) 0%, rgba(196, 38, 38, 0.5) 18%, transparent 19%, transparent 34%, rgba(18, 73, 148, 0.72) 35%, rgba(18, 73, 148, 0.72) 47%, transparent 48%), linear-gradient(180deg, #2d5c96 0%, #1f4170 100%)",
-        backgroundAttachment: "fixed",
+        // iOS Safari ignores fixed backgrounds and the gradient stops short.
+        backgroundAttachment: isCompact ? "scroll" : "fixed",
         color: "#f9fbff",
       }}
     >
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, position: "relative" }}>
         <div style={{ display: "grid", gap: 0, alignContent: "start" }}>
-          <h2 style={{ margin: 0 }}>Grapple</h2>
-          <p style={{ margin: 0 }}>Game ID: {gameId}</p>
+          <h2 style={{ margin: 0, fontSize: isCompact ? "1.25rem" : undefined }}>Grapple</h2>
+          <p style={{ margin: 0, fontSize: isCompact ? 13 : undefined }}>Game ID: {gameId}</p>
         </div>
         {state?.gameMode === "THREE_ROUND" || error ? (
           <div
@@ -256,7 +273,7 @@ export default function GameClient() {
           </div>
         ) : null}
         <div style={{ textAlign: "right", display: "grid", gap: 2, justifyItems: "end" }}>
-          <div>
+          <div style={{ fontSize: isCompact ? 13 : undefined }}>
             <div>{currentPlayer ? `Turn: ${currentPlayer.name}` : "Waiting for players..."}</div>
             {state?.gameMode === "THREE_ROUND" ? <div>Round Timer: {roundTimerLabel}</div> : null}
           </div>
@@ -271,7 +288,7 @@ export default function GameClient() {
               });
             }}
             style={{
-              padding: "8px 14px",
+              padding: isCompact ? "6px 12px" : "8px 14px",
               borderRadius: 8,
               border: "1px solid #111",
               background: "#fff",
@@ -325,7 +342,7 @@ export default function GameClient() {
       ) : null}
 
       <section style={{ display: "grid", gap: 4 }}>
-        <h3 style={{ margin: 0 }}>Opponents</h3>
+        {isCompact ? null : <h3 style={{ margin: 0 }}>Opponents</h3>}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
           {opponents.length === 0 ? (
             <div>Waiting for opponents to join.</div>
@@ -336,22 +353,35 @@ export default function GameClient() {
                 style={{
                   border: "1px solid rgba(255,255,255,0.35)",
                   borderRadius: 12,
-                  padding: "10px 12px 8px",
-                  minWidth: 180,
+                  padding: isCompact ? "6px 10px" : "10px 12px 8px",
+                  minWidth: isCompact ? 0 : 180,
+                  width: isCompact ? "100%" : undefined,
+                  boxSizing: "border-box",
                   background: "rgba(7, 24, 49, 0.65)",
                   display: "grid",
                   gap: 4,
                 }}
               >
-                <div style={{ fontWeight: 600 }}>{player.name}</div>
+                <div style={{ fontWeight: 600, display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <span>{player.name}</span>
+                  {isCompact ? (
+                    <span style={{ fontWeight: 400, fontSize: 12 }}>
+                      {positionLabels[player.currentPosition]} · Pen {player.penaltyPoints}
+                    </span>
+                  ) : null}
+                </div>
                 {state?.gameMode === "THREE_ROUND" && state.playerBanners[player.id] ? (
                   <div style={{ marginTop: 6, display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, color: "#fff", background: state.playerBanners[player.id] === "GREEN" ? "#16a34a" : "#dc2626" }}>
                     {getBannerLabel(player.id)}
                   </div>
                 ) : null}
-                <div style={{ fontSize: 12 }}>Penalties: {player.penaltyPoints}</div>
-                <div style={{ fontSize: 12 }}>Position: {positionLabels[player.currentPosition]}</div>
-                <div style={{ marginTop: 6, display: "flex", gap: 6 }}>
+                {isCompact ? null : (
+                  <>
+                    <div style={{ fontSize: 12 }}>Penalties: {player.penaltyPoints}</div>
+                    <div style={{ fontSize: 12 }}>Position: {positionLabels[player.currentPosition]}</div>
+                  </>
+                )}
+                <div style={{ marginTop: isCompact ? 2 : 6, display: "flex", gap: isCompact ? 4 : 6, flexWrap: "wrap" }}>
                   {Array.from({ length: player.hand.length }).map((_, index) => (
                     <Image
                       key={index}
@@ -359,7 +389,7 @@ export default function GameClient() {
                       alt="Face down card"
                       width={22}
                       height={32}
-                      style={{ width: 22, height: 32, borderRadius: 4, border: "1px solid #555" }}
+                      style={{ width: isCompact ? 14 : 22, height: isCompact ? 20 : 32, borderRadius: isCompact ? 2 : 4, border: "1px solid #555" }}
                     />
                   ))}
                 </div>
@@ -369,11 +399,11 @@ export default function GameClient() {
         </div>
       </section>
 
-      <section style={{ display: "grid", placeItems: "center", gap: 4, marginTop: "clamp(36px, 11vh, 150px)" }}>
+      <section style={{ display: "grid", placeItems: "center", gap: 4, marginTop: isCompact ? 8 : "clamp(36px, 11vh, 150px)" }}>
         <div
           style={{
             display: "flex",
-            gap: "clamp(16px, 2.8vw, 40px)",
+            gap: isCompact ? 14 : "clamp(16px, 2.8vw, 40px)",
             alignItems: "center",
             flexWrap: "wrap",
             justifyContent: "center",
@@ -390,14 +420,14 @@ export default function GameClient() {
               border: "2px solid #111827",
               fontWeight: 600,
               overflow: "hidden",
-              padding: 8,
+              padding: isCompact ? 4 : 8,
             }}
           >
             <Image src={BACK_OF_CARD} alt="Draw pile" width={190} height={272} style={{ width: "100%", height: "auto", borderRadius: 8 }} />
-            <div style={{ fontSize: 12, marginTop: 6 }}>{state ? state.drawPile.length : 0} cards</div>
+            <div style={{ fontSize: isCompact ? 11 : 12, marginTop: isCompact ? 2 : 6 }}>{state ? state.drawPile.length : 0} cards</div>
           </button>
           <div style={{ textAlign: "center" }}>
-            <div style={{ marginBottom: 6, fontWeight: 600 }}>Discard</div>
+            <div style={{ marginBottom: isCompact ? 2 : 6, fontWeight: 600, fontSize: isCompact ? 13 : undefined }}>Discard</div>
             <div style={{ width: cardWidth }}>
               <Image
                 src={getCardImage(topCard)}
@@ -443,8 +473,8 @@ export default function GameClient() {
 
       <section style={{ display: "grid", gap: 4 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-          <h3 style={{ margin: 0 }}>Your Hand {me ? `(${me.hand.length})` : ""}</h3>
-          <h3 style={{ margin: 0 }}>Position: {me ? positionLabels[me.currentPosition] : "—"}</h3>
+          <h3 style={{ margin: 0, fontSize: isCompact ? 15 : undefined }}>Your Hand {me ? `(${me.hand.length})` : ""}</h3>
+          <h3 style={{ margin: 0, fontSize: isCompact ? 15 : undefined }}>Position: {me ? positionLabels[me.currentPosition] : "—"}</h3>
         </div>
         {me ? (
           <>
@@ -453,16 +483,33 @@ export default function GameClient() {
                 {getBannerLabel(playerId)}
               </div>
             ) : null}
-            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(clamp(124px, 12.5vw, 190px), 1fr))", width: "100%" }}>
+            <div
+              style={
+                isCompact
+                  ? {
+                      // Swipeable single row so the whole hand stays on screen.
+                      display: "flex",
+                      gap: 8,
+                      overflowX: "auto",
+                      scrollSnapType: "x mandatory",
+                      WebkitOverflowScrolling: "touch",
+                      paddingBottom: 6,
+                      width: "100%",
+                    }
+                  : { display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(clamp(124px, 12.5vw, 190px), 1fr))", width: "100%" }
+              }
+            >
             {me.hand.map((card) => (
               <button
                 key={card.id}
                 onClick={() => socket.emit("turn:playCard", { gameId, cardId: card.id })}
                 disabled={!isMyTurn || state?.phase === "LOBBY" || needsEndOfPeriodChoice || pendingRound2Decision || pendingRoundStartPositionChoice}
                 style={{
-                  width: "100%",
-                  maxWidth: cardWidth,
-                  borderRadius: 12,
+                  width: isCompact ? handCardWidth : "100%",
+                  maxWidth: handCardWidth,
+                  flex: isCompact ? "0 0 auto" : undefined,
+                  scrollSnapAlign: isCompact ? "start" : undefined,
+                  borderRadius: isCompact ? 8 : 12,
                   border: "2px solid #111",
                   background: "#fff",
                   padding: 0,

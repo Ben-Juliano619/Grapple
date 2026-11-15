@@ -12,6 +12,8 @@ const nextConfig = isMobileBuild
       images: { unoptimized: true },
     }
   : {
+      // Hide the floating "N" dev badge; it covers cards when testing on a phone.
+      devIndicators: false,
       async redirects() {
         // Keep old shared links like /game/123456 working on the website.
         return [{ source: "/game/:id", destination: "/game?id=:id", permanent: false }];
