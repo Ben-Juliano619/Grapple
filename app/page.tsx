@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getSocket } from "./lib/socket";
+import Image from "next/image";
+import { getSocket, resolveSocketUrl } from "./lib/socket";
+import styles from "./home.module.css";
 import { createNewGameSession, readGameSessionCookie } from "./lib/session";
 import { getActiveGameId, resetGameSessionState } from "./lib/gameSessionState";
 
@@ -34,7 +36,7 @@ export default function Home() {
 
       try {
         const query = new URLSearchParams(existing);
-        const response = await fetch(`http://localhost:3001/api/session/validate?${query.toString()}`);
+        const response = await fetch(`${resolveSocketUrl()}/api/session/validate?${query.toString()}`);
         if (!response.ok) {
           resetGameSessionState({ clearSessionCookie: true });
           return;
@@ -63,6 +65,14 @@ export default function Home() {
   }, [pathname]);
 
   function createGame() {
+    startNewGame("game:create");
+  }
+
+  function createPracticeGame() {
+    startNewGame("game:createPractice");
+  }
+
+  function startNewGame(eventName: "game:create" | "game:createPractice") {
     if (!isSessionReady) {
       setErrorMessage("Preparing session, please try again.");
       return;
@@ -79,12 +89,12 @@ export default function Home() {
     resetGameSessionState({ clearSessionCookie: true });
     const socket = getSocket();
     socket.emit(
-      "game:create",
+      eventName,
       null,
       (response: { ok: boolean; gameId?: string; error?: string }) => {
         if (response.ok && response.gameId) {
           createNewGameSession(response.gameId);
-          router.push(`/game/${response.gameId}`);
+          router.push(`/game?id=${encodeURIComponent(response.gameId)}`);
           return;
         }
         resetGameSessionState({ clearSessionCookie: true });
@@ -131,111 +141,58 @@ export default function Home() {
         }
 
         window.localStorage.setItem("grapple.playerName", trimmedPlayerName);
-        router.push(`/game/${trimmedCode}`);
+        router.push(`/game?id=${encodeURIComponent(trimmedCode)}`);
       },
     );
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        padding: "clamp(16px, 3vw, 36px)",
-        fontFamily: "system-ui",
-        background:
-          "radial-gradient(circle at center, #922 0%, #7d1f1f 30%, #4a1111 68%, #240808 100%)",
-      }}
-    >
-      <main
-        style={{
-          width: "min(92vw, 640px)",
-          borderRadius: 26,
-          border: "2px solid rgba(255,255,255,0.25)",
-          background:
-            "linear-gradient(145deg, rgba(35, 5, 8, 0.95), rgba(80, 14, 18, 0.95)), repeating-linear-gradient(45deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 2px, transparent 2px, transparent 10px)",
-          boxShadow: "0 30px 60px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.12)",
-          padding: "clamp(20px, 4vw, 38px)",
-          color: "#fff",
-          display: "grid",
-          gap: 18,
-          textAlign: "center",
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0, fontSize: "clamp(2rem, 6vw, 3.4rem)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-            Grapple
-          </h1>
-          <p style={{ margin: "8px 0 0", opacity: 0.9 }}>Deal. Wrestle. Outsmart. Win the mat.</p>
-        </div>
+    <div className={styles.screen}>
+      <main className={styles.panel}>
+        <Image className={styles.logo} src="/img/logos/blue_logo.jpeg" alt="Grapple Wrestling card game" width={637} height={560} priority />
 
-        <div style={{ display: "grid", gap: 12, width: "100%" }}>
+        <div className={styles.form}>
           <input
+            className={styles.input}
             value={playerName}
             onChange={(e) => setPlayerName(e.target.value)}
-            placeholder="Player name"
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.5)",
-              background: "rgba(255,255,255,0.08)",
-              color: "#fff",
-            }}
+            placeholder="Your name"
+            aria-label="Your name"
+            autoComplete="nickname"
+            maxLength={20}
           />
-          <button
-            onClick={createGame}
-            disabled={!isSessionReady}
-            style={{
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid #fff",
-              background: "#f8f8f8",
-              color: "#320a0a",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            Create Game
+          <button className={`${styles.btn} ${styles.primary}`} onClick={createGame} disabled={!isSessionReady}>
+            Play a Friend
+          </button>
+          <button className={`${styles.btn} ${styles.light}`} onClick={createPracticeGame} disabled={!isSessionReady}>
+            Practice vs Computer
           </button>
 
+          <div className={styles.divider}>Have a code?</div>
+          <div className={styles.joinRow}>
+            <input
+              className={`${styles.input} ${styles.codeInput}`}
+              value={gameCode}
+              onChange={(e) => setGameCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="Game code"
+              aria-label="Game code"
+              inputMode="numeric"
+              autoComplete="off"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") joinGame();
+              }}
+            />
+            <button className={styles.btn} onClick={joinGame} disabled={!isSessionReady}>
+              Join
+            </button>
+          </div>
+
+          {errorMessage ? <p className={styles.error}>{errorMessage}</p> : null}
         </div>
 
-        <div style={{ display: "grid", gap: 10, width: "100%" }}>
-          <input
-            value={gameCode}
-            onChange={(e) => setGameCode(e.target.value)}
-            placeholder="Enter 6-digit game id"
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.5)",
-              background: "rgba(255,255,255,0.08)",
-              color: "#fff",
-            }}
-          />
-          <button
-            onClick={joinGame}
-            disabled={!isSessionReady}
-            style={{
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.8)",
-              background: "rgba(255,255,255,0.15)",
-              color: "#fff",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            Join Game
-          </button>
-        </div>
-
-        {errorMessage ? <p style={{ color: "#ffd1d1", margin: 0 }}>{errorMessage}</p> : null}
+        <a className={styles.footer} href="/privacy/">
+          Privacy Policy
+        </a>
       </main>
     </div>
   );

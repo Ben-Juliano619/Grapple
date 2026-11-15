@@ -37,6 +37,11 @@ export type GameState = {
   isOvertime: boolean;
   pendingEndOfPeriodPlayerId?: string;
   rematchVotes: string[];
+  // Both wrestlers' positions before the most recent position change, so
+  // Out of Bounds can put everyone back ("go back to the previous position").
+  positionsBeforeLastChange?: Record<string, Position>;
+  // Rules: the loser of a game plays first in the next one.
+  nextStarterPlayerId?: string;
   start: () => void;
 };
 
@@ -115,6 +120,10 @@ function getCardDefinition(imageFile: string): Omit<CardTemplate, "imageFile" | 
     if (imageFile.includes("to_pin")) {
       return DEFAULT_CARD_STYLE.PIN;
     }
+    // Cards printed "REVERSAL R2": the bottom wrestler comes out on top.
+    if (imageFile.includes("granby") || imageFile.includes("switch")) {
+      return { ...DEFAULT_CARD_STYLE.BOTTOM, meta: { reversal: true } };
+    }
     return DEFAULT_CARD_STYLE.BOTTOM;
   }
 
@@ -168,6 +177,8 @@ function loadCardTemplates(): CardTemplate[] {
 
 const CARD_TEMPLATES = loadCardTemplates();
 const ROUND_DURATION_MS = 2 * 60 * 1000;
+const OVERTIME_DURATION_MS = 60 * 1000;
+const HAND_SIZE = 5;
 
 export function createGameState(id: string): GameState {
   const state: GameState = {
@@ -214,6 +225,12 @@ export function createGameState(id: string): GameState {
       }
 
       startFreshRound(state, state.currentRound === 0 ? undefined : "FIND_START_NEUTRAL");
+
+      // "Determining who begins can be done by any method": random for a new
+      // game, and the previous game's loser goes first in a rematch.
+      const starterIndex = state.players.findIndex((player) => player.id === state.nextStarterPlayerId);
+      state.currentTurnIndex = starterIndex >= 0 ? starterIndex : Math.floor(Math.random() * state.players.length);
+      state.nextStarterPlayerId = undefined;
     },
   };
   return state;
@@ -249,6 +266,9 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
     }
 
     if (state.rematchVotes.length >= 2) {
+      state.nextStarterPlayerId =
+        state.gameResult === "WIN" ? state.players.find((player) => player.id !== state.gameWinnerPlayerId)?.id : undefined;
+      state.positionsBeforeLastChange = undefined;
       state.phase = "LOBBY";
       state.drawPile = [];
       state.discardPile = [];
@@ -284,7 +304,7 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
   if (state.phase === "LOBBY") return { ok: false, error: "Game not started" };
   if (state.phase === "ENDED") return { ok: false, error: "Game already ended" };
 
-  if (state.gameMode === "THREE_ROUND" && !state.isOvertime && isRoundTimerExpired(state)) {
+  if (state.gameMode === "THREE_ROUND" && isRoundTimerExpired(state)) {
     finishRound(state, null);
     return { ok: true };
   }
@@ -325,7 +345,9 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
       return { ok: false, error: "No end-of-period position choice is pending" };
     }
 
+    const positionsBefore = snapshotPositions(state);
     applyEndOfPeriodPositionChoice(state, action.playerId, action.position);
+    if (positionsChanged(state, positionsBefore)) state.positionsBeforeLastChange = positionsBefore;
     state.pendingEndOfPeriodPlayerId = undefined;
     endTurn(state);
     return { ok: true };
@@ -336,9 +358,19 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
   }
 
   if (action.type === "DRAW") {
+    // Rules: you draw only when you can't play a card in your hand.
+    if (currentPlayer.hand.some((card) => isCardLegal(state, card).ok)) {
+      return { ok: false, error: "You have a card you can play. You can only draw when nothing is playable." };
+    }
+
     const drawnCard = drawOne(state);
     if (!drawnCard) {
-      return { ok: false, error: "No more cards available" };
+      // Safety net: nothing playable and nothing left to draw. With 50 cards
+      // this shouldn't happen (0 times in 200,000 simulated games), so log it
+      // as a likely bug and pass the turn rather than freezing the game.
+      console.warn(`[game ${state.id}] ${currentPlayer.id} has no playable card and no cards to draw; passing the turn`);
+      endTurn(state);
+      return { ok: true };
     }
 
     currentPlayer.hand.push(drawnCard);
@@ -358,28 +390,28 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
   state.discardPile.push(card);
   state.playedPile.push(card);
 
-  if (state.gameMode === "THREE_ROUND" && !state.isOvertime) {
-    if (isPinningCard(card)) {
+  if (state.gameMode === "THREE_ROUND") {
+    // A pin or emptying your hand wins the round (in overtime: the match).
+    if (isPinningCard(card) || currentPlayer.hand.length === 0) {
       finishRound(state, currentPlayer.id);
       return { ok: true };
     }
 
+    // End of Period ends the round as a draw.
     if (card.kind === "END_OF_PERIOD") {
       finishRound(state, null);
       return { ok: true };
     }
-  } else {
-    if (isPinningCard(card) || currentPlayer.hand.length === 0) {
-      if (state.gameMode === "THREE_ROUND") {
-        endThreeRoundGame(state, currentPlayer.id);
-      } else {
-        endClassicGame(state, currentPlayer.id);
-      }
-      return { ok: true };
-    }
+  } else if (isPinningCard(card) || currentPlayer.hand.length === 0) {
+    endClassicGame(state, currentPlayer.id);
+    return { ok: true };
   }
 
+  const positionsBefore = snapshotPositions(state);
   const shouldEndTurn = applyCardEffects(state, card, currentPlayer.id);
+  if (card.kind !== "OUT_OF_BOUNDS" && positionsChanged(state, positionsBefore)) {
+    state.positionsBeforeLastChange = positionsBefore;
+  }
 
   if (shouldEndTurn) {
     endTurn(state);
@@ -403,18 +435,28 @@ function assignBanners(state: GameState) {
   state.playerBanners[second.id] = "RED";
 }
 
-function startFreshRound(state: GameState, phaseOverride?: GameState["phase"]) {
-  const deck = shuffle(buildDeck());
-  state.drawPile = deck;
+function startFreshRound(state: GameState, phaseOverride?: GameState["phase"], options: { keepDeck?: boolean } = {}) {
+  if (options.keepDeck) {
+    // Later periods keep using the same deck: old hands go to the used pile
+    // and everyone gets a new hand from what's left. The used pile is only
+    // shuffled back in when the draw pile runs out (see drawOne).
+    for (const player of state.players) {
+      state.playedPile.push(...player.hand);
+    }
+  } else {
+    state.drawPile = shuffle(buildDeck());
+    state.playedPile = [];
+  }
   state.discardPile = [];
-  state.playedPile = [];
   state.currentTurnIndex = 0;
   state.pendingEndOfPeriodPlayerId = undefined;
+  state.positionsBeforeLastChange = undefined;
 
   for (const player of state.players) {
     player.hand = [];
-    for (let i = 0; i < 5; i += 1) {
-      player.hand.push(drawOne(state));
+    for (let i = 0; i < HAND_SIZE; i += 1) {
+      const card = drawOne(state);
+      if (card) player.hand.push(card);
     }
     player.score = 0;
     player.penaltyPoints = 0;
@@ -438,6 +480,12 @@ function isRoundTimerExpired(state: GameState): boolean {
 }
 
 function finishRound(state: GameState, winnerPlayerId: string | null) {
+  // Overtime decides the match: a pin / empty hand wins, otherwise a draw.
+  if (state.isOvertime) {
+    endThreeRoundGame(state, winnerPlayerId);
+    return;
+  }
+
   if (winnerPlayerId) {
     state.roundWins[winnerPlayerId] = (state.roundWins[winnerPlayerId] ?? 0) + 1;
   }
@@ -486,12 +534,13 @@ function finishRound(state: GameState, winnerPlayerId: string | null) {
 function startOvertime(state: GameState) {
   state.currentRound = 4;
   state.isOvertime = true;
-  startFreshRound(state, "PLAY");
+  startFreshRound(state, "PLAY", { keepDeck: true });
+  state.roundEndsAt = Date.now() + OVERTIME_DURATION_MS;
 }
 
 function prepareRoundTwo(state: GameState) {
   state.currentRound = 2;
-  startFreshRound(state);
+  startFreshRound(state, undefined, { keepDeck: true });
 
   const [first, second] = state.players;
   if (!first || !second) {
@@ -507,7 +556,7 @@ function prepareRoundTwo(state: GameState) {
 
 function prepareRoundThree(state: GameState) {
   state.currentRound = 3;
-  startFreshRound(state);
+  startFreshRound(state, undefined, { keepDeck: true });
 
   if (!state.roundStartChooserPlayerId) {
     endThreeRoundGame(state, null);
@@ -554,12 +603,10 @@ function isCardLegal(state: GameState, card: Card): { ok: true } | { ok: false; 
   const player = state.players[state.currentTurnIndex];
 
   // Position-matching play
-  if (player.currentPosition === "NEUTRAL" && (card.kind === "NEUTRAL" || card.kind === "ATTEMPT_TAKEDOWN")) 
-    {
-      player.currentPosition = "TOP"
-      //set other player to the "Bottom"
-      return { ok: true };
-    }
+  // Checking legality must not change the game; card effects happen later.
+  if (player.currentPosition === "NEUTRAL" && (card.kind === "NEUTRAL" || card.kind === "ATTEMPT_TAKEDOWN")) {
+    return { ok: true };
+  }
   if (player.currentPosition === "TOP" && card.kind === "TOP") return { ok: true };
   if (player.currentPosition === "BOTTOM" && (card.kind === "BOTTOM" || card.kind === "TRIPOD" || card.kind === "SITOUT")) {
     return { ok: true };
@@ -644,7 +691,12 @@ function applyCardEffects(state: GameState, card: Card, currentPlayerId: string)
         }
         return true;
       }
-      currentPlayer.currentPosition = card.meta?.doesNotChangePosition ? currentPlayer.currentPosition : "BOTTOM";
+      if (card.meta?.reversal) {
+        currentPlayer.currentPosition = "TOP";
+        for (const player of otherPlayers) player.currentPosition = "BOTTOM";
+        return true;
+      }
+      // Other bottom moves (e.g. breakdown defence) keep the bottom wrestler underneath.
       return true;
 
     case "TRIPOD":
@@ -658,8 +710,15 @@ function applyCardEffects(state: GameState, card: Card, currentPlayerId: string)
       return true;
 
     case "OUT_OF_BOUNDS":
-      // revert this player's position if known, else neutral
-      currentPlayer.currentPosition = currentPlayer.previousPosition ?? "NEUTRAL";
+      // Stop wrestling and put BOTH wrestlers back where they were before the
+      // last position change (nothing to undo yet = stay where they are).
+      if (state.positionsBeforeLastChange) {
+        for (const player of state.players) {
+          player.currentPosition = state.positionsBeforeLastChange[player.id] ?? player.currentPosition;
+          player.canCounterTakedown = false;
+        }
+        state.positionsBeforeLastChange = undefined;
+      }
       return true;
 
     case "PENALTY":
@@ -723,9 +782,10 @@ function setAllPlayersToNeutral(state: GameState) {
 function isNeutralTakedown(card: Card): boolean {
   if (card.kind !== "NEUTRAL") return false;
 
-  const imageFile = card.imageFile?.toLowerCase() ?? "";
-  const name = card.name.toLowerCase();
-  return imageFile.includes("takedown") || name.includes("takedown") && !imageFile.includes("attempted");
+  // Every Neutral card in the deck is a scoring takedown (all are printed
+  // "T2", including Ankle Pick and Fireman's Carry, whose names don't say
+  // "takedown"). Attempted Takedown has its own card kind.
+  return true;
 }
 
 function isBottomStandUp(card: Card): boolean {
@@ -734,6 +794,14 @@ function isBottomStandUp(card: Card): boolean {
   const imageFile = card.imageFile?.toLowerCase() ?? "";
   const name = card.name.toLowerCase();
   return imageFile.includes("stand_up");
+}
+
+function snapshotPositions(state: GameState): Record<string, Position> {
+  return Object.fromEntries(state.players.map((player) => [player.id, player.currentPosition]));
+}
+
+function positionsChanged(state: GameState, before: Record<string, Position>): boolean {
+  return state.players.some((player) => before[player.id] !== player.currentPosition);
 }
 
 function endTurn(state: GameState) {

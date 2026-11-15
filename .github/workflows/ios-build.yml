@@ -1,0 +1,57 @@
+# Builds the iOS app on a GitHub-hosted Mac so it can be tested without owning one.
+#
+# Output: an UNSIGNED Grapple.ipa uploaded as a workflow artifact. Install it on
+# an iPhone from Windows with Sideloadly (signs it with your Apple ID; free
+# Apple IDs must reinstall every 7 days). For TestFlight / App Store you'll
+# need an Apple Developer account and signing secrets (not configured yet).
+name: iOS build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [exp/ios_port]
+
+jobs:
+  build-ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build static frontend and sync into Xcode project
+        env:
+          # Socket server the app connects to (defaults to the production site).
+          NEXT_PUBLIC_SOCKET_URL: ${{ vars.NEXT_PUBLIC_SOCKET_URL }}
+        run: npm run ios:sync
+
+      - name: Build unsigned app
+        run: |
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package .ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qr Grapple.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Grapple-unsigned-ipa
+          path: Grapple.ipa
+          retention-days: 14

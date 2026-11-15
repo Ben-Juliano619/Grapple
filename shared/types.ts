@@ -28,5 +28,6 @@ export type Card = {
     // used for “After a takedown, bottom needs appropriate move to escape”
     requiresEscapeMove?: string[]; // list of move tags that can respond
     doesNotChangePosition?: boolean; // for tripod/sitout
+    reversal?: boolean; // bottom wrestler ends up on top (Granby roll, switches)
   };
 };
