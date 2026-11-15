@@ -37,6 +37,11 @@ export type GameState = {
   isOvertime: boolean;
   pendingEndOfPeriodPlayerId?: string;
   rematchVotes: string[];
+  // Both wrestlers' positions before the most recent position change, so
+  // Out of Bounds can put everyone back ("go back to the previous position").
+  positionsBeforeLastChange?: Record<string, Position>;
+  // Rules: the loser of a game plays first in the next one.
+  nextStarterPlayerId?: string;
   start: () => void;
 };
 
@@ -114,6 +119,10 @@ function getCardDefinition(imageFile: string): Omit<CardTemplate, "imageFile" | 
     }
     if (imageFile.includes("to_pin")) {
       return DEFAULT_CARD_STYLE.PIN;
+    }
+    // Cards printed "REVERSAL R2": the bottom wrestler comes out on top.
+    if (imageFile.includes("granby") || imageFile.includes("switch")) {
+      return { ...DEFAULT_CARD_STYLE.BOTTOM, meta: { reversal: true } };
     }
     return DEFAULT_CARD_STYLE.BOTTOM;
   }
@@ -214,6 +223,12 @@ export function createGameState(id: string): GameState {
       }
 
       startFreshRound(state, state.currentRound === 0 ? undefined : "FIND_START_NEUTRAL");
+
+      // "Determining who begins can be done by any method": random for a new
+      // game, and the previous game's loser goes first in a rematch.
+      const starterIndex = state.players.findIndex((player) => player.id === state.nextStarterPlayerId);
+      state.currentTurnIndex = starterIndex >= 0 ? starterIndex : Math.floor(Math.random() * state.players.length);
+      state.nextStarterPlayerId = undefined;
     },
   };
   return state;
@@ -249,6 +264,9 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
     }
 
     if (state.rematchVotes.length >= 2) {
+      state.nextStarterPlayerId =
+        state.gameResult === "WIN" ? state.players.find((player) => player.id !== state.gameWinnerPlayerId)?.id : undefined;
+      state.positionsBeforeLastChange = undefined;
       state.phase = "LOBBY";
       state.drawPile = [];
       state.discardPile = [];
@@ -325,7 +343,9 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
       return { ok: false, error: "No end-of-period position choice is pending" };
     }
 
+    const positionsBefore = snapshotPositions(state);
     applyEndOfPeriodPositionChoice(state, action.playerId, action.position);
+    if (positionsChanged(state, positionsBefore)) state.positionsBeforeLastChange = positionsBefore;
     state.pendingEndOfPeriodPlayerId = undefined;
     endTurn(state);
     return { ok: true };
@@ -379,7 +399,11 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
     }
   }
 
+  const positionsBefore = snapshotPositions(state);
   const shouldEndTurn = applyCardEffects(state, card, currentPlayer.id);
+  if (card.kind !== "OUT_OF_BOUNDS" && positionsChanged(state, positionsBefore)) {
+    state.positionsBeforeLastChange = positionsBefore;
+  }
 
   if (shouldEndTurn) {
     endTurn(state);
@@ -410,6 +434,7 @@ function startFreshRound(state: GameState, phaseOverride?: GameState["phase"]) {
   state.playedPile = [];
   state.currentTurnIndex = 0;
   state.pendingEndOfPeriodPlayerId = undefined;
+  state.positionsBeforeLastChange = undefined;
 
   for (const player of state.players) {
     player.hand = [];
@@ -554,12 +579,10 @@ function isCardLegal(state: GameState, card: Card): { ok: true } | { ok: false; 
   const player = state.players[state.currentTurnIndex];
 
   // Position-matching play
-  if (player.currentPosition === "NEUTRAL" && (card.kind === "NEUTRAL" || card.kind === "ATTEMPT_TAKEDOWN")) 
-    {
-      player.currentPosition = "TOP"
-      //set other player to the "Bottom"
-      return { ok: true };
-    }
+  // Checking legality must not change the game; card effects happen later.
+  if (player.currentPosition === "NEUTRAL" && (card.kind === "NEUTRAL" || card.kind === "ATTEMPT_TAKEDOWN")) {
+    return { ok: true };
+  }
   if (player.currentPosition === "TOP" && card.kind === "TOP") return { ok: true };
   if (player.currentPosition === "BOTTOM" && (card.kind === "BOTTOM" || card.kind === "TRIPOD" || card.kind === "SITOUT")) {
     return { ok: true };
@@ -644,7 +667,12 @@ function applyCardEffects(state: GameState, card: Card, currentPlayerId: string)
         }
         return true;
       }
-      currentPlayer.currentPosition = card.meta?.doesNotChangePosition ? currentPlayer.currentPosition : "BOTTOM";
+      if (card.meta?.reversal) {
+        currentPlayer.currentPosition = "TOP";
+        for (const player of otherPlayers) player.currentPosition = "BOTTOM";
+        return true;
+      }
+      // Other bottom moves (e.g. breakdown defence) keep the bottom wrestler underneath.
       return true;
 
     case "TRIPOD":
@@ -658,8 +686,15 @@ function applyCardEffects(state: GameState, card: Card, currentPlayerId: string)
       return true;
 
     case "OUT_OF_BOUNDS":
-      // revert this player's position if known, else neutral
-      currentPlayer.currentPosition = currentPlayer.previousPosition ?? "NEUTRAL";
+      // Stop wrestling and put BOTH wrestlers back where they were before the
+      // last position change (nothing to undo yet = stay where they are).
+      if (state.positionsBeforeLastChange) {
+        for (const player of state.players) {
+          player.currentPosition = state.positionsBeforeLastChange[player.id] ?? player.currentPosition;
+          player.canCounterTakedown = false;
+        }
+        state.positionsBeforeLastChange = undefined;
+      }
       return true;
 
     case "PENALTY":
@@ -723,9 +758,10 @@ function setAllPlayersToNeutral(state: GameState) {
 function isNeutralTakedown(card: Card): boolean {
   if (card.kind !== "NEUTRAL") return false;
 
-  const imageFile = card.imageFile?.toLowerCase() ?? "";
-  const name = card.name.toLowerCase();
-  return imageFile.includes("takedown") || name.includes("takedown") && !imageFile.includes("attempted");
+  // Every Neutral card in the deck is a scoring takedown (all are printed
+  // "T2", including Ankle Pick and Fireman's Carry, whose names don't say
+  // "takedown"). Attempted Takedown has its own card kind.
+  return true;
 }
 
 function isBottomStandUp(card: Card): boolean {
@@ -734,6 +770,14 @@ function isBottomStandUp(card: Card): boolean {
   const imageFile = card.imageFile?.toLowerCase() ?? "";
   const name = card.name.toLowerCase();
   return imageFile.includes("stand_up");
+}
+
+function snapshotPositions(state: GameState): Record<string, Position> {
+  return Object.fromEntries(state.players.map((player) => [player.id, player.currentPosition]));
+}
+
+function positionsChanged(state: GameState, before: Record<string, Position>): boolean {
+  return state.players.some((player) => before[player.id] !== player.currentPosition);
 }
 
 function endTurn(state: GameState) {
