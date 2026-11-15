@@ -362,14 +362,14 @@ export default function GameClient() {
                 disabled={!canAct}
                 aria-label={`Draw a card (${state.drawPile.length} left)`}
               >
-                <Image src={BACK_OF_CARD} alt="Draw pile" width={190} height={262} />
+                <Image src={BACK_OF_CARD} alt="Draw pile" width={190} height={262} loading="eager" />
                 <span className={styles.pileCount}>{state.drawPile.length}</span>
               </button>
               <div className={styles.pileLabel}>Draw</div>
             </div>
             <div>
               <div className={`${styles.pile} ${styles.discard}`}>
-                <Image src={getCardImage(topCard)} alt={topCard ? `Last played: ${topCard.name}` : "No card played yet"} width={190} height={262} />
+                <Image src={getCardImage(topCard)} alt={topCard ? `Last played: ${topCard.name}` : "No card played yet"} width={190} height={262} loading="eager" />
               </div>
               <div className={styles.pileLabel}>Last played</div>
             </div>
@@ -404,7 +404,7 @@ export default function GameClient() {
                   }}
                   disabled={!canAct}
                 >
-                  <Image src={getCardImage(card)} alt={card.name} width={190} height={262} />
+                  <Image src={getCardImage(card)} alt={card.name} width={190} height={262} loading="eager" />
                 </button>
               ))}
             </div>
