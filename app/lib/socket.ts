@@ -4,7 +4,13 @@ import { io, type Socket } from "socket.io-client";
 let socket: Socket | null = null;
 
 export function resolveSocketUrl() {
-  const localSocketUrl = "http://localhost:3001";
+  // In dev, reach the socket server on whatever host served the page, so a
+  // phone on the same Wi-Fi (http://192.168.x.x:3000) talks to the PC's :3001
+  // instead of its own localhost.
+  const localSocketUrl =
+    typeof window !== "undefined" && window.location.hostname && window.location.protocol.startsWith("http")
+      ? `http://${window.location.hostname}:3001`
+      : "http://localhost:3001";
   const productionFallbackUrl = "https://grapplewrestlingcardgame.com";
   const useLocalSocket = process.env.NEXT_PUBLIC_USE_LOCAL_SOCKET === "true";
   const isProduction = process.env.NODE_ENV === "production";
