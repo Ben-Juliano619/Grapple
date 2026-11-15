@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { Position } from "../shared/types";
-import { applyAction, createGameState, type GameState } from "./logic";
+import { applyAction, createGameState, tickRoundTimer, type GameState } from "./logic";
 import { takeBotTurn } from "./bot";
 
 const A = "a";
@@ -44,9 +44,14 @@ function player(state: GameState, id: string) {
 
 /** Move a specific card (by image file) from the draw pile into a hand. */
 function give(state: GameState, id: string, imageFile: string) {
-  const index = state.drawPile.findIndex((card) => card.imageFile === imageFile);
-  assert.ok(index >= 0, `no ${imageFile} left in draw pile`);
-  const [card] = state.drawPile.splice(index, 1);
+  let pile = state.drawPile;
+  let index = pile.findIndex((card) => card.imageFile === imageFile);
+  if (index < 0) {
+    pile = state.playedPile;
+    index = pile.findIndex((card) => card.imageFile === imageFile);
+  }
+  assert.ok(index >= 0, `no ${imageFile} left to give`);
+  const [card] = pile.splice(index, 1);
   player(state, id).hand.push(card);
   return card;
 }
@@ -292,6 +297,171 @@ test("rematch: the loser plays first", () => {
   assert.equal(turn(state), B);
 });
 
+// ---------- Drawing ----------
+
+test("you can only draw when nothing in your hand is playable", () => {
+  const state = midGame();
+  padHands(state); // stalling is playable from anywhere
+  const result = applyAction(state, { type: "DRAW", playerId: A });
+  assert.equal(result.ok, false);
+  assert.equal(turn(state), A);
+});
+
+test("drawing is allowed when nothing is playable, and the drawn card can't be played this turn", () => {
+  const state = midGame({ a: "BOTTOM", b: "TOP" });
+  give(state, A, "top_far_arm_chop.png");
+  const before = player(state, A).hand.length;
+  assert.ok(applyAction(state, { type: "DRAW", playerId: A }).ok);
+  assert.equal(player(state, A).hand.length, before + 1);
+  assert.equal(turn(state), B);
+});
+
+test("safety net: nothing playable and nothing to draw passes the turn", () => {
+  const state = midGame({ a: "BOTTOM", b: "TOP" });
+  give(state, A, "top_far_arm_chop.png");
+  state.drawPile = [];
+  state.playedPile = [];
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    assert.ok(applyAction(state, { type: "DRAW", playerId: A }).ok);
+  } finally {
+    console.warn = warn;
+  }
+  assert.equal(turn(state), B);
+  assert.equal(player(state, A).hand.length, 1);
+});
+
+test("an empty draw pile is refilled from the used pile", () => {
+  const state = midGame({ a: "BOTTOM", b: "TOP" });
+  give(state, A, "top_far_arm_chop.png");
+  state.playedPile.push(...state.drawPile);
+  state.drawPile = [];
+  assert.ok(applyAction(state, { type: "DRAW", playerId: A }).ok);
+  assert.equal(player(state, A).hand.length, 2);
+  assert.ok(state.drawPile.length > 0);
+});
+
+// ---------- 3 Rounds mode ----------
+
+/** Make any pending round-start choices the way players would. */
+function makeRoundChoices(state: GameState) {
+  if (state.pendingRound2DecisionPlayerId) {
+    applyAction(state, { type: "ROUND2_DECISION", playerId: state.pendingRound2DecisionPlayerId, deferStartChoice: false });
+  }
+  const chooser = state.pendingRound2StartPositionChooserPlayerId ?? state.pendingRound3StartPositionChooserPlayerId;
+  if (chooser) applyAction(state, { type: "ROUND_START_POSITION", playerId: chooser, position: "NEUTRAL" });
+}
+
+function endRoundByTimer(state: GameState) {
+  makeRoundChoices(state);
+  state.roundEndsAt = Date.now() - 1;
+  assert.ok(tickRoundTimer(state));
+}
+
+/** 3 Rounds game in round 1, past the opening, empty hands, A to move. */
+function threeRounds() {
+  const state = newGame("THREE_ROUND");
+  state.phase = "PLAY";
+  state.currentTurnIndex = 0;
+  clearHands(state);
+  return state;
+}
+
+test("3 Rounds: a pin wins the round only, not the match", () => {
+  const state = threeRounds();
+  padHands(state);
+  assert.ok(play(state, A, "neutral_head_lock_to_pin.png").ok);
+  assert.equal(state.roundWins[A], 1);
+  assert.equal(state.currentRound, 2);
+  assert.notEqual(state.phase, "ENDED");
+});
+
+test("3 Rounds: emptying your hand wins the round", () => {
+  const state = threeRounds();
+  give(state, B, "stalling.png");
+  give(state, A, "neutral_single_leg_takedown.png");
+  assert.ok(play(state, A, "neutral_single_leg_takedown.png").ok);
+  assert.equal(state.roundWins[A], 1);
+  assert.equal(state.currentRound, 2);
+});
+
+test("3 Rounds: End of Period ends the round as a draw", () => {
+  const state = threeRounds();
+  padHands(state);
+  assert.ok(play(state, A, "end_of_period.png").ok);
+  assert.equal(state.roundWins[A], 0);
+  assert.equal(state.roundWins[B], 0);
+  assert.equal(state.currentRound, 2);
+});
+
+test("3 Rounds: the period timer running out is a draw", () => {
+  const state = threeRounds();
+  state.roundEndsAt = Date.now() - 1;
+  assert.ok(tickRoundTimer(state));
+  assert.equal(state.currentRound, 2);
+  assert.equal((state.roundWins[A] ?? 0) + (state.roundWins[B] ?? 0), 0);
+});
+
+test("3 Rounds: next period deals new hands from the same deck (no reshuffle)", () => {
+  const state = threeRounds();
+  padHands(state);
+  const drawPileBefore = state.drawPile.length;
+  const oldHandIds = new Set(state.players.flatMap((p) => p.hand.map((c) => c.id)));
+  play(state, A, "end_of_period.png"); // round 1 ends as a draw
+  for (const p of state.players) {
+    assert.equal(p.hand.length, 5);
+    assert.ok(p.hand.every((c) => !oldHandIds.has(c.id)), "new hands");
+  }
+  assert.equal(state.drawPile.length, drawPileBefore - 1 - 10, "dealt from the remaining draw pile");
+});
+
+test("3 Rounds: two round wins take the match", () => {
+  const state = threeRounds();
+  padHands(state);
+  play(state, A, "neutral_head_lock_to_pin.png");
+  makeRoundChoices(state);
+  state.currentTurnIndex = 0;
+  clearHands(state);
+  padHands(state);
+  for (const p of state.players) p.currentPosition = "NEUTRAL";
+  assert.ok(play(state, A, "neutral_head_lock_to_pin.png").ok);
+  assert.equal(state.phase, "ENDED");
+  assert.equal(state.gameWinnerPlayerId, A);
+});
+
+test("3 Rounds: tied after 3 rounds goes to a 1-minute overtime", () => {
+  const state = threeRounds();
+  for (let round = 1; round <= 3; round += 1) endRoundByTimer(state);
+  assert.equal(state.isOvertime, true);
+  assert.equal(state.phase, "PLAY");
+  const remaining = (state.roundEndsAt ?? 0) - Date.now();
+  assert.ok(remaining > 55_000 && remaining <= 60_000, `overtime timer ${remaining}ms`);
+});
+
+test("overtime: a pin wins the match; time running out is a draw", () => {
+  const toOvertime = () => {
+    const state = threeRounds();
+    for (let round = 1; round <= 3; round += 1) endRoundByTimer(state);
+    state.currentTurnIndex = 0;
+    clearHands(state);
+    return state;
+  };
+
+  const pinned = toOvertime();
+  padHands(pinned);
+  assert.ok(play(pinned, A, "neutral_head_lock_to_pin.png").ok);
+  assert.equal(pinned.phase, "ENDED");
+  assert.equal(pinned.gameResult, "WIN");
+  assert.equal(pinned.gameWinnerPlayerId, A);
+
+  const timedOut = toOvertime();
+  timedOut.roundEndsAt = Date.now() - 1;
+  assert.ok(tickRoundTimer(timedOut));
+  assert.equal(timedOut.phase, "ENDED");
+  assert.equal(timedOut.gameResult, "DRAW");
+});
+
 // ---------- Whole-game invariants ----------
 
 test("positions are always possible: both neutral, or one top and one bottom", () => {
@@ -302,7 +472,9 @@ test("positions are always possible: both neutral, or one top and one bottom", (
         if (!(takeBotTurn(state, A) || takeBotTurn(state, B))) break;
         const pair = [player(state, A).currentPosition, player(state, B).currentPosition].sort().join("+");
         assert.ok(pair === "NEUTRAL+NEUTRAL" || pair === "BOTTOM+TOP", `impossible positions ${pair} in ${mode}`);
-        assert.ok(player(state, A).hand.length + player(state, B).hand.length + state.drawPile.length <= 50);
+        // No card is ever lost or duplicated: hands + draw pile + used pile = the 50-card deck.
+        const cards = player(state, A).hand.length + player(state, B).hand.length + state.drawPile.length + state.playedPile.length;
+        assert.equal(cards, 50, `${cards} cards accounted for in ${mode}`);
       }
     }
   }

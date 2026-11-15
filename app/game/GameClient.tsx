@@ -168,7 +168,7 @@ export default function GameClient() {
   );
   const roundSecondsLeft = state?.roundEndsAt ? Math.max(0, Math.ceil((state.roundEndsAt - now) / 1000)) : null;
   const roundTimerLabel =
-    state?.isOvertime ? "No time limit (Overtime)" : roundSecondsLeft === null ? "--:--" : `${Math.floor(roundSecondsLeft / 60).toString().padStart(2, "0")}:${(roundSecondsLeft % 60).toString().padStart(2, "0")}`;
+    roundSecondsLeft === null ? "--:--" : `${Math.floor(roundSecondsLeft / 60).toString().padStart(2, "0")}:${(roundSecondsLeft % 60).toString().padStart(2, "0")}`;
 
 
   // Haptic nudge when it becomes your turn, and on the final result.
@@ -231,12 +231,12 @@ export default function GameClient() {
   const roundLine =
     state?.gameMode === "THREE_ROUND" && !isLobby && state.phase !== "ENDED"
       ? state.isOvertime
-        ? "Overtime · no time limit"
+        ? `Overtime · ${roundTimerLabel}`
         : `Round ${state.currentRound} · ${roundTimerLabel}`
       : null;
   const handHint =
     state?.phase === "FIND_START_NEUTRAL" && isMyTurn
-      ? "Play Neutral or draw"
+      ? "Play a Neutral card"
       : canAct
         ? "Tap a card to play"
         : null;
@@ -506,7 +506,7 @@ export default function GameClient() {
         <div className={styles.overlay}>
           <div className={styles.sheet}>
             <h3 className={styles.sheetTitle}>Rematch?</h3>
-            {state?.isOvertime ? <p className={styles.sheetText}>Overtime: first pin or first to empty their hand wins.</p> : null}
+            {state?.isOvertime ? <p className={styles.sheetText}>Overtime: 1 minute. First pin or first to empty their hand wins; otherwise it&apos;s a draw.</p> : null}
             <div className={styles.progress} aria-label={`${Math.min(rematchVotesCount, 2)} of 2 players ready`}>
               <div className={styles.progressFill} style={{ width: `${Math.min(100, (rematchVotesCount / 2) * 100)}%` }} />
             </div>

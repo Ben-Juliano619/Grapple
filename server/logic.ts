@@ -177,6 +177,8 @@ function loadCardTemplates(): CardTemplate[] {
 
 const CARD_TEMPLATES = loadCardTemplates();
 const ROUND_DURATION_MS = 2 * 60 * 1000;
+const OVERTIME_DURATION_MS = 60 * 1000;
+const HAND_SIZE = 5;
 
 export function createGameState(id: string): GameState {
   const state: GameState = {
@@ -302,7 +304,7 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
   if (state.phase === "LOBBY") return { ok: false, error: "Game not started" };
   if (state.phase === "ENDED") return { ok: false, error: "Game already ended" };
 
-  if (state.gameMode === "THREE_ROUND" && !state.isOvertime && isRoundTimerExpired(state)) {
+  if (state.gameMode === "THREE_ROUND" && isRoundTimerExpired(state)) {
     finishRound(state, null);
     return { ok: true };
   }
@@ -356,9 +358,19 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
   }
 
   if (action.type === "DRAW") {
+    // Rules: you draw only when you can't play a card in your hand.
+    if (currentPlayer.hand.some((card) => isCardLegal(state, card).ok)) {
+      return { ok: false, error: "You have a card you can play. You can only draw when nothing is playable." };
+    }
+
     const drawnCard = drawOne(state);
     if (!drawnCard) {
-      return { ok: false, error: "No more cards available" };
+      // Safety net: nothing playable and nothing left to draw. With 50 cards
+      // this shouldn't happen (0 times in 200,000 simulated games), so log it
+      // as a likely bug and pass the turn rather than freezing the game.
+      console.warn(`[game ${state.id}] ${currentPlayer.id} has no playable card and no cards to draw; passing the turn`);
+      endTurn(state);
+      return { ok: true };
     }
 
     currentPlayer.hand.push(drawnCard);
@@ -378,25 +390,21 @@ export function applyAction(state: GameState, action: Action): { ok: true } | { 
   state.discardPile.push(card);
   state.playedPile.push(card);
 
-  if (state.gameMode === "THREE_ROUND" && !state.isOvertime) {
-    if (isPinningCard(card)) {
+  if (state.gameMode === "THREE_ROUND") {
+    // A pin or emptying your hand wins the round (in overtime: the match).
+    if (isPinningCard(card) || currentPlayer.hand.length === 0) {
       finishRound(state, currentPlayer.id);
       return { ok: true };
     }
 
+    // End of Period ends the round as a draw.
     if (card.kind === "END_OF_PERIOD") {
       finishRound(state, null);
       return { ok: true };
     }
-  } else {
-    if (isPinningCard(card) || currentPlayer.hand.length === 0) {
-      if (state.gameMode === "THREE_ROUND") {
-        endThreeRoundGame(state, currentPlayer.id);
-      } else {
-        endClassicGame(state, currentPlayer.id);
-      }
-      return { ok: true };
-    }
+  } else if (isPinningCard(card) || currentPlayer.hand.length === 0) {
+    endClassicGame(state, currentPlayer.id);
+    return { ok: true };
   }
 
   const positionsBefore = snapshotPositions(state);
@@ -427,19 +435,28 @@ function assignBanners(state: GameState) {
   state.playerBanners[second.id] = "RED";
 }
 
-function startFreshRound(state: GameState, phaseOverride?: GameState["phase"]) {
-  const deck = shuffle(buildDeck());
-  state.drawPile = deck;
+function startFreshRound(state: GameState, phaseOverride?: GameState["phase"], options: { keepDeck?: boolean } = {}) {
+  if (options.keepDeck) {
+    // Later periods keep using the same deck: old hands go to the used pile
+    // and everyone gets a new hand from what's left. The used pile is only
+    // shuffled back in when the draw pile runs out (see drawOne).
+    for (const player of state.players) {
+      state.playedPile.push(...player.hand);
+    }
+  } else {
+    state.drawPile = shuffle(buildDeck());
+    state.playedPile = [];
+  }
   state.discardPile = [];
-  state.playedPile = [];
   state.currentTurnIndex = 0;
   state.pendingEndOfPeriodPlayerId = undefined;
   state.positionsBeforeLastChange = undefined;
 
   for (const player of state.players) {
     player.hand = [];
-    for (let i = 0; i < 5; i += 1) {
-      player.hand.push(drawOne(state));
+    for (let i = 0; i < HAND_SIZE; i += 1) {
+      const card = drawOne(state);
+      if (card) player.hand.push(card);
     }
     player.score = 0;
     player.penaltyPoints = 0;
@@ -463,6 +480,12 @@ function isRoundTimerExpired(state: GameState): boolean {
 }
 
 function finishRound(state: GameState, winnerPlayerId: string | null) {
+  // Overtime decides the match: a pin / empty hand wins, otherwise a draw.
+  if (state.isOvertime) {
+    endThreeRoundGame(state, winnerPlayerId);
+    return;
+  }
+
   if (winnerPlayerId) {
     state.roundWins[winnerPlayerId] = (state.roundWins[winnerPlayerId] ?? 0) + 1;
   }
@@ -511,12 +534,13 @@ function finishRound(state: GameState, winnerPlayerId: string | null) {
 function startOvertime(state: GameState) {
   state.currentRound = 4;
   state.isOvertime = true;
-  startFreshRound(state, "PLAY");
+  startFreshRound(state, "PLAY", { keepDeck: true });
+  state.roundEndsAt = Date.now() + OVERTIME_DURATION_MS;
 }
 
 function prepareRoundTwo(state: GameState) {
   state.currentRound = 2;
-  startFreshRound(state);
+  startFreshRound(state, undefined, { keepDeck: true });
 
   const [first, second] = state.players;
   if (!first || !second) {
@@ -532,7 +556,7 @@ function prepareRoundTwo(state: GameState) {
 
 function prepareRoundThree(state: GameState) {
   state.currentRound = 3;
-  startFreshRound(state);
+  startFreshRound(state, undefined, { keepDeck: true });
 
   if (!state.roundStartChooserPlayerId) {
     endThreeRoundGame(state, null);
