@@ -1,4 +1,5 @@
 import type { Viewport } from "next";
+import NativeSetup from "./NativeSetup";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -20,6 +21,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           html { -webkit-text-size-adjust: 100%; }
           /* iOS zooms in when focusing a field with text under 16px. */
           input, select, textarea { font-size: 16px; }
+          /* Feel like an app, not a web page: no text selection, no long-press
+             "Save Image" menu on cards, no double-tap zoom on buttons. */
+          body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+          input, textarea { -webkit-user-select: text; user-select: text; }
+          img { -webkit-user-drag: none; -webkit-touch-callout: none; }
+          button, a, select { touch-action: manipulation; }
         `}</style>
       </head>
       <body
@@ -29,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           WebkitTapHighlightColor: "transparent",
         }}
       >
+        <NativeSetup />
         {children}
       </body>
     </html>

@@ -3,6 +3,7 @@ import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import { createGameState, applyAction, isPlayerInGame, tickRoundTimer } from "./logic";
+import { BOT_NAME, takeBotTurn } from "./bot";
 import { Position } from "../shared/types";
 import {
   CLEANUP_INTERVAL_MS,
@@ -42,6 +43,29 @@ type GameId = string;
 const games = new Map<GameId, ReturnType<typeof createGameState>>();
 const gameSessions = new Map<GameId, GameSessionState>();
 const MAX_PLAYERS = 2;
+// Practice games: gameId -> the bot's player id.
+const botPlayers = new Map<GameId, string>();
+const BOT_MOVE_DELAY_MS = 900;
+const pendingBotMoves = new Set<GameId>();
+
+function broadcastState(gameId: GameId, state: ReturnType<typeof createGameState>) {
+  io.to(gameId).emit("game:state", state);
+  scheduleBotMove(gameId);
+}
+
+// After every state change, give the bot a moment and let it move if the
+// game is waiting on it. Each bot move broadcasts again, which chains turns.
+function scheduleBotMove(gameId: GameId) {
+  const botId = botPlayers.get(gameId);
+  if (!botId || pendingBotMoves.has(gameId)) return;
+  pendingBotMoves.add(gameId);
+  setTimeout(() => {
+    pendingBotMoves.delete(gameId);
+    const state = games.get(gameId);
+    if (!state) return;
+    if (takeBotTurn(state, botId)) broadcastState(gameId, state);
+  }, BOT_MOVE_DELAY_MS);
+}
 
 function generateSixDigitGameId() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -103,6 +127,8 @@ function markDisconnected(gameId: string, socketId: string, now: number) {
 function deleteGame(gameId: string) {
   games.delete(gameId);
   gameSessions.delete(gameId);
+  botPlayers.delete(gameId);
+  pendingBotMoves.delete(gameId);
 }
 
 app.get("/api/session/validate", (req, res) => {
@@ -135,7 +161,38 @@ io.on("connection", (socket) => {
       games.set(gameId, state);
       gameSessions.set(gameId, createGameSessionState(now));
       socket.join(gameId);
-      io.to(gameId).emit("game:state", state);
+      broadcastState(gameId, state);
+      callback?.({ ok: true, gameId });
+    },
+  );
+
+  socket.on(
+    "game:createPractice",
+    (
+      payload: { mode?: "CLASSIC" | "THREE_ROUND" } | null,
+      callback?: (response: { ok: true; gameId: string } | { ok: false; error: string }) => void,
+    ) => {
+      const gameId = createUniqueGameId();
+      const state = createGameState(gameId);
+      if (payload?.mode === "CLASSIC" || payload?.mode === "THREE_ROUND") {
+        state.gameMode = payload.mode;
+      }
+
+      const botId = `bot-${crypto.randomUUID()}`;
+      state.players.push({
+        id: botId,
+        name: BOT_NAME,
+        hand: [],
+        score: 0,
+        penaltyPoints: 0,
+        currentPosition: "NEUTRAL",
+        previousPosition: undefined,
+        canCounterTakedown: false,
+      });
+
+      games.set(gameId, state);
+      gameSessions.set(gameId, createGameSessionState(Date.now()));
+      botPlayers.set(gameId, botId);
       callback?.({ ok: true, gameId });
     },
   );
@@ -186,7 +243,7 @@ io.on("connection", (socket) => {
           socket.data.gameId = gameId;
           socket.join(gameId);
           markConnected(gameId, socket.id);
-          io.to(gameId).emit("game:state", state);
+          broadcastState(gameId, state);
           callback?.({ ok: true, playerId: existingPlayerId, state });
           return;
         }
@@ -220,7 +277,7 @@ io.on("connection", (socket) => {
       socket.join(gameId);
       markConnected(gameId, socket.id);
 
-      io.to(gameId).emit("game:state", state);
+      broadcastState(gameId, state);
       callback?.({ ok: true, playerId, state });
     },
   );
@@ -231,7 +288,7 @@ io.on("connection", (socket) => {
 
     const result = applyAction(state, { type: "SET_MODE", mode });
     if (!result.ok) return socket.emit("game:error", "error" in result ? result.error : "Unknown error");
-    io.to(gameId).emit("game:state", state);
+    broadcastState(gameId, state);
   });
 
   socket.on("round:coinWinnerDecision", ({ gameId, deferStartChoice }: { gameId: string; deferStartChoice: boolean }) => {
@@ -241,7 +298,7 @@ io.on("connection", (socket) => {
     const playerId = socket.data.playerId as string;
     const result = applyAction(state, { type: "ROUND2_DECISION", playerId, deferStartChoice });
     if (!result.ok) return socket.emit("game:error", "error" in result ? result.error : "Unknown error");
-    io.to(gameId).emit("game:state", state);
+    broadcastState(gameId, state);
   });
 
   socket.on("round:startPosition", ({ gameId, position }: { gameId: string; position: Position }) => {
@@ -251,7 +308,7 @@ io.on("connection", (socket) => {
     const playerId = socket.data.playerId as string;
     const result = applyAction(state, { type: "ROUND_START_POSITION", playerId, position });
     if (!result.ok) return socket.emit("game:error", "error" in result ? result.error : "Unknown error");
-    io.to(gameId).emit("game:state", state);
+    broadcastState(gameId, state);
   });
 
   socket.on("game:start", ({ gameId }: { gameId: string }) => {
@@ -261,7 +318,7 @@ io.on("connection", (socket) => {
 
     // deal 5 to each player
     state.start();
-    io.to(gameId).emit("game:state", state);
+    broadcastState(gameId, state);
   });
 
   socket.on("turn:playCard", ({ gameId, cardId }: { gameId: string; cardId: string }) => {
@@ -273,7 +330,7 @@ io.on("connection", (socket) => {
 
     const result = applyAction(state, { type: "PLAY_CARD", playerId, cardId });
     if (result.ok) {
-      io.to(gameId).emit("game:state", state);
+      broadcastState(gameId, state);
       return;
     }
 
@@ -287,7 +344,7 @@ io.on("connection", (socket) => {
     const playerId = socket.data.playerId as string;
     const result = applyAction(state, { type: "DRAW", playerId });
     if (result.ok) {
-      io.to(gameId).emit("game:state", state);
+      broadcastState(gameId, state);
       return;
     }
 
@@ -303,7 +360,7 @@ io.on("connection", (socket) => {
 
     const result = applyAction(state, { type: "END_OF_PERIOD_POSITION", playerId, position });
     if (result.ok) {
-      io.to(gameId).emit("game:state", state);
+      broadcastState(gameId, state);
       return;
     }
 
@@ -320,7 +377,7 @@ io.on("connection", (socket) => {
 
     const result = applyAction(state, { type: "REQUEST_REMATCH", playerId });
     if (result.ok) {
-      io.to(gameId).emit("game:state", state);
+      broadcastState(gameId, state);
       return;
     }
 
@@ -349,7 +406,7 @@ setInterval(() => {
   for (const [gameId, state] of games.entries()) {
     const changed = tickRoundTimer(state);
     if (changed) {
-      io.to(gameId).emit("game:state", state);
+      broadcastState(gameId, state);
     }
   }
 }, 1000);

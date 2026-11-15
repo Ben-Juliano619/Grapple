@@ -2,6 +2,7 @@
 import { io, type Socket } from "socket.io-client";
 
 let socket: Socket | null = null;
+let hasResumeListener = false;
 
 export function resolveSocketUrl() {
   // In dev, reach the socket server on whatever host served the page, so a
@@ -32,6 +33,17 @@ export function getSocket() {
       reconnectionDelay: 250,
       reconnectionDelayMax: 2000,
     });
+
+    // When the app comes back to the foreground (iOS suspends it in the
+    // background), reconnect right away instead of waiting for a timeout.
+    if (typeof document !== "undefined" && !hasResumeListener) {
+      hasResumeListener = true;
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && socket && !socket.connected) {
+          socket.connect();
+        }
+      });
+    }
   }
   return socket;
 }

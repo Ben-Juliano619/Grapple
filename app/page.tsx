@@ -63,6 +63,14 @@ export default function Home() {
   }, [pathname]);
 
   function createGame() {
+    startNewGame("game:create");
+  }
+
+  function createPracticeGame() {
+    startNewGame("game:createPractice");
+  }
+
+  function startNewGame(eventName: "game:create" | "game:createPractice") {
     if (!isSessionReady) {
       setErrorMessage("Preparing session, please try again.");
       return;
@@ -79,7 +87,7 @@ export default function Home() {
     resetGameSessionState({ clearSessionCookie: true });
     const socket = getSocket();
     socket.emit(
-      "game:create",
+      eventName,
       null,
       (response: { ok: boolean; gameId?: string; error?: string }) => {
         if (response.ok && response.gameId) {
@@ -205,6 +213,21 @@ export default function Home() {
             }}
           >
             Create Game
+          </button>
+          <button
+            onClick={createPracticeGame}
+            disabled={!isSessionReady}
+            style={{
+              padding: "12px 14px",
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.8)",
+              background: "transparent",
+              color: "#fff",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Practice vs Computer
           </button>
 
         </div>

@@ -7,6 +7,7 @@ import type { Card, Position } from "../../shared/types";
 import { getSocket } from "../lib/socket";
 import { ensureSessionForGame } from "../lib/session";
 import { resetGameSessionState, setActiveGameId } from "../lib/gameSessionState";
+import { resultFeedback, shareGameCode, tapFeedback, turnFeedback } from "../lib/native";
 
 type PlayerState = {
   id: string;
@@ -84,6 +85,7 @@ export default function GameClient() {
   const [now, setNow] = useState(() => Date.now());
   const [hasAcknowledgedMatchResult, setHasAcknowledgedMatchResult] = useState(false);
   const isCompact = useIsCompact();
+  const [inviteLabel, setInviteLabel] = useState("Invite a friend");
 
   useEffect(() => {
     if (!gameId) {
@@ -190,6 +192,31 @@ export default function GameClient() {
     return `${banner} - Lose`;
   };
 
+  // Haptic nudge when it becomes your turn, and on the final result.
+  const isMyActiveTurn = Boolean(isMyTurn && (state?.phase === "PLAY" || state?.phase === "FIND_START_NEUTRAL"));
+  useEffect(() => {
+    if (isMyActiveTurn) turnFeedback();
+  }, [isMyActiveTurn]);
+  useEffect(() => {
+    if (needsMatchResultPopup) resultFeedback(isMatchWinner);
+  }, [needsMatchResultPopup, isMatchWinner]);
+
+  async function inviteFriend() {
+    const result = await shareGameCode(gameId);
+    if (result === "copied") {
+      setInviteLabel("Code copied!");
+      window.setTimeout(() => setInviteLabel("Invite a friend"), 2000);
+    }
+  }
+
+  function leaveGame() {
+    const inProgress = state && state.phase !== "LOBBY" && state.phase !== "ENDED" && opponents.length > 0;
+    if (inProgress && !window.confirm("Leave this match? It will end the game for both players.")) return;
+    if (state && playerId) socket.emit("game:end", { gameId });
+    resetGameSessionState({ clearSessionCookie: true });
+    router.push("/");
+  }
+
   function chooseEndOfPeriodPosition(position: Position) {
     socket.emit("turn:endOfPeriodPosition", { gameId, position });
   }
@@ -220,34 +247,18 @@ export default function GameClient() {
           <h2 style={{ margin: 0, fontSize: isCompact ? "1.25rem" : undefined }}>Grapple</h2>
           <p style={{ margin: 0, fontSize: isCompact ? 13 : undefined }}>Game ID: {gameId}</p>
         </div>
-        {state?.gameMode === "THREE_ROUND" || error ? (
+        {state?.gameMode === "THREE_ROUND" && !isCompact ? (
           <div
-            style={
-              isCompact
-                ? {
-                    // Phones: float as a toast at the top instead of overlapping the header.
-                    position: "fixed",
-                    left: "50%",
-                    top: "calc(env(safe-area-inset-top) + 6px)",
-                    transform: "translateX(-50%)",
-                    zIndex: 40,
-                    display: error ? "grid" : "none",
-                    gap: 4,
-                    justifyItems: "center",
-                    width: "calc(100% - 24px)",
-                  }
-                : {
+            style={{
               position: "absolute",
               left: "50%",
               top: 0,
               transform: "translateX(-50%)",
               display: "grid",
-              gap: 4,
               justifyItems: "center",
-            }
-            }
+            }}
           >
-            {state?.gameMode === "THREE_ROUND" && !isCompact ? (
+            {state?.gameMode === "THREE_ROUND" ? (
               <div
                 style={{
                   background: "rgba(0,0,0,0.35)",
@@ -265,27 +276,36 @@ export default function GameClient() {
                 {state.isOvertime ? "Overtime" : `Round ${state.currentRound}`} {state.gameResult === "DRAW" ? "- Draw" : ""}
               </div>
             ) : null}
-            {error ? (
-              <div
-                style={{
-                  background: "#fee",
-                  border: "1px solid #f5c2c2",
-                  padding: isCompact ? "8px 12px" : "4px 10px",
-                  color: "#5f0000",
-                  borderRadius: 8,
-                  boxShadow: isCompact ? "0 6px 18px rgba(0,0,0,0.35)" : undefined,
-                  width: "max-content",
-                  maxWidth: "min(100%, 560px)",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  minHeight: 0,
-                  opacity: isErrorFading ? 0 : 1,
-                  transition: "opacity 500ms ease",
-                }}
-              >
-                {error}
-              </div>
-            ) : null}
+          </div>
+        ) : null}
+        {error ? (
+          // Error toast: fixed to the top of the screen and wraps long messages,
+          // so it can never run off the edge (phones, landscape or desktop).
+          <div
+            role="alert"
+            style={{
+              position: "fixed",
+              left: "50%",
+              top: "calc(env(safe-area-inset-top) + 8px)",
+              transform: "translateX(-50%)",
+              zIndex: 40,
+              width: "max-content",
+              maxWidth: "min(560px, calc(100vw - 24px))",
+              background: "#fee",
+              border: "1px solid #f5c2c2",
+              padding: "8px 12px",
+              color: "#5f0000",
+              borderRadius: 8,
+              boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
+              textAlign: "center",
+              whiteSpace: "normal",
+              overflowWrap: "anywhere",
+              opacity: isErrorFading ? 0 : 1,
+              transition: "opacity 500ms ease",
+              pointerEvents: "none",
+            }}
+          >
+            {error}
           </div>
         ) : null}
         <div style={{ textAlign: "right", display: "grid", gap: 2, justifyItems: "end" }}>
@@ -301,6 +321,22 @@ export default function GameClient() {
               )
             ) : null}
           </div>
+          <div style={{ display: "flex", gap: 6 }}>
+          <button
+            onClick={leaveGame}
+            style={{
+              padding: isCompact ? "6px 10px" : "8px 14px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.7)",
+              background: "transparent",
+              color: "#fff",
+              fontWeight: 600,
+              cursor: "pointer",
+              marginTop: 2,
+            }}
+          >
+            Leave
+          </button>
           <button
             onClick={() => {
               setShowRules((value) => {
@@ -323,6 +359,7 @@ export default function GameClient() {
           >
             {showRules ? "Hide Rules" : "Rules"}
           </button>
+          </div>
         </div>
       </header>
 
@@ -435,7 +472,10 @@ export default function GameClient() {
           }}
         >
           <button
-            onClick={() => socket.emit("turn:draw", { gameId })}
+            onClick={() => {
+              tapFeedback();
+              socket.emit("turn:draw", { gameId });
+            }}
             disabled={!state || !isMyTurn || state.phase === "LOBBY" || needsEndOfPeriodChoice || pendingRound2Decision || pendingRoundStartPositionChoice}
             style={{
               width: cardWidth,
@@ -466,6 +506,21 @@ export default function GameClient() {
 
         {state?.phase === "LOBBY" ? (
           <div style={{ display: "grid", gap: 10, justifyItems: "center" }}>
+            {opponents.length === 0 ? (
+              <button
+                onClick={() => void inviteFriend()}
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: 8,
+                  border: "1px solid #fff",
+                  background: "#fff",
+                  color: "#0b1f3d",
+                  fontWeight: 700,
+                }}
+              >
+                {inviteLabel} · {gameId}
+              </button>
+            ) : null}
             <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
               Game mode
               <select
@@ -526,7 +581,10 @@ export default function GameClient() {
             {me.hand.map((card) => (
               <button
                 key={card.id}
-                onClick={() => socket.emit("turn:playCard", { gameId, cardId: card.id })}
+                onClick={() => {
+                  tapFeedback();
+                  socket.emit("turn:playCard", { gameId, cardId: card.id });
+                }}
                 disabled={!isMyTurn || state?.phase === "LOBBY" || needsEndOfPeriodChoice || pendingRound2Decision || pendingRoundStartPositionChoice}
                 style={{
                   width: isCompact ? handCardWidth : "100%",

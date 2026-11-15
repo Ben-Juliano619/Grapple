@@ -5,7 +5,9 @@ export type GameSessionState = {
   emptySince: number | null;
 };
 
-export const GAME_IDLE_TTL_MS = 2 * 60 * 1000;
+// Phones suspend the app (and its connection) when you switch apps, e.g. to
+// text a friend the game code, so give both players time to come back.
+export const GAME_IDLE_TTL_MS = 10 * 60 * 1000;
 export const GAME_MAX_LIFETIME_MS = 2 * 60 * 60 * 1000;
 export const CLEANUP_INTERVAL_MS = 30 * 1000;
 
