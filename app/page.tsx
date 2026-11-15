@@ -155,7 +155,8 @@ export default function Home() {
     >
       <main
         style={{
-          width: "min(92vw, 640px)",
+          width: "100%",
+          maxWidth: 640,
           borderRadius: 26,
           border: "2px solid rgba(255,255,255,0.25)",
           background:

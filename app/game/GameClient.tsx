@@ -222,7 +222,21 @@ export default function GameClient() {
         </div>
         {state?.gameMode === "THREE_ROUND" || error ? (
           <div
-            style={{
+            style={
+              isCompact
+                ? {
+                    // Phones: float as a toast at the top instead of overlapping the header.
+                    position: "fixed",
+                    left: "50%",
+                    top: "calc(env(safe-area-inset-top) + 6px)",
+                    transform: "translateX(-50%)",
+                    zIndex: 40,
+                    display: error ? "grid" : "none",
+                    gap: 4,
+                    justifyItems: "center",
+                    width: "calc(100% - 24px)",
+                  }
+                : {
               position: "absolute",
               left: "50%",
               top: 0,
@@ -230,9 +244,10 @@ export default function GameClient() {
               display: "grid",
               gap: 4,
               justifyItems: "center",
-            }}
+            }
+            }
           >
-            {state?.gameMode === "THREE_ROUND" ? (
+            {state?.gameMode === "THREE_ROUND" && !isCompact ? (
               <div
                 style={{
                   background: "rgba(0,0,0,0.35)",
@@ -255,9 +270,10 @@ export default function GameClient() {
                 style={{
                   background: "#fee",
                   border: "1px solid #f5c2c2",
-                  padding: "4px 10px",
+                  padding: isCompact ? "8px 12px" : "4px 10px",
                   color: "#5f0000",
                   borderRadius: 8,
+                  boxShadow: isCompact ? "0 6px 18px rgba(0,0,0,0.35)" : undefined,
                   width: "max-content",
                   maxWidth: "min(100%, 560px)",
                   display: "inline-flex",
@@ -275,7 +291,15 @@ export default function GameClient() {
         <div style={{ textAlign: "right", display: "grid", gap: 2, justifyItems: "end" }}>
           <div style={{ fontSize: isCompact ? 13 : undefined }}>
             <div>{currentPlayer ? `Turn: ${currentPlayer.name}` : "Waiting for players..."}</div>
-            {state?.gameMode === "THREE_ROUND" ? <div>Round Timer: {roundTimerLabel}</div> : null}
+            {state?.gameMode === "THREE_ROUND" ? (
+              isCompact ? (
+                <div>
+                  {state.isOvertime ? "Overtime" : `Round ${state.currentRound}`} · {state.isOvertime ? "No limit" : roundTimerLabel}
+                </div>
+              ) : (
+                <div>Round Timer: {roundTimerLabel}</div>
+              )
+            ) : null}
           </div>
           <button
             onClick={() => {
@@ -371,7 +395,7 @@ export default function GameClient() {
                   ) : null}
                 </div>
                 {state?.gameMode === "THREE_ROUND" && state.playerBanners[player.id] ? (
-                  <div style={{ marginTop: 6, display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, color: "#fff", background: state.playerBanners[player.id] === "GREEN" ? "#16a34a" : "#dc2626" }}>
+                  <div style={{ marginTop: isCompact ? 0 : 6, justifySelf: "start", display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, color: "#fff", background: state.playerBanners[player.id] === "GREEN" ? "#16a34a" : "#dc2626" }}>
                     {getBannerLabel(player.id)}
                   </div>
                 ) : null}
@@ -479,7 +503,7 @@ export default function GameClient() {
         {me ? (
           <>
             {state?.gameMode === "THREE_ROUND" && playerId && state.playerBanners[playerId] ? (
-              <div style={{ display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, color: "#fff", background: state.playerBanners[playerId] === "GREEN" ? "#16a34a" : "#dc2626" }}>
+              <div style={{ justifySelf: "start", display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, color: "#fff", background: state.playerBanners[playerId] === "GREEN" ? "#16a34a" : "#dc2626" }}>
                 {getBannerLabel(playerId)}
               </div>
             ) : null}
