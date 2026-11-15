@@ -27,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           input, textarea { -webkit-user-select: text; user-select: text; }
           img { -webkit-user-drag: none; -webkit-touch-callout: none; }
           button, a, select { touch-action: manipulation; }
+          @keyframes grappleSceneIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
         `}</style>
       </head>
       <body

@@ -7,6 +7,7 @@ import type { Card, Position } from "../../shared/types";
 import { getSocket } from "../lib/socket";
 import { ensureSessionForGame } from "../lib/session";
 import { resetGameSessionState, setActiveGameId } from "../lib/gameSessionState";
+import WrestlingMat from "./WrestlingMat";
 import { resultFeedback, shareGameCode, tapFeedback, turnFeedback } from "../lib/native";
 
 type PlayerState = {
@@ -216,6 +217,16 @@ export default function GameClient() {
     resetGameSessionState({ clearSessionCookie: true });
     router.push("/");
   }
+
+  const opponent = opponents[0] ?? null;
+  const singletColor = (id: string, fallback: string) => {
+    const banner = state?.playerBanners[id];
+    return banner === "GREEN" ? "#16a34a" : banner === "RED" ? "#dc2626" : fallback;
+  };
+  const matWrestlers = {
+    me: me ? { name: me.name, position: me.currentPosition, color: singletColor(me.id, "#f59e0b") } : null,
+    opponent: opponent ? { name: opponent.name, position: opponent.currentPosition, color: singletColor(opponent.id, "#dc2626") } : null,
+  };
 
   function chooseEndOfPeriodPosition(position: Position) {
     socket.emit("turn:endOfPeriodPosition", { gameId, position });
@@ -460,7 +471,13 @@ export default function GameClient() {
         </div>
       </section>
 
-      <section style={{ display: "grid", placeItems: "center", gap: 4, marginTop: isCompact ? 8 : "clamp(36px, 11vh, 150px)" }}>
+      {matWrestlers.me && matWrestlers.opponent ? (
+        <section style={{ marginTop: isCompact ? 2 : "clamp(4px, 1.5vh, 20px)" }}>
+          <WrestlingMat me={matWrestlers.me} opponent={matWrestlers.opponent} height={isCompact ? 72 : 110} />
+        </section>
+      ) : null}
+
+      <section style={{ display: "grid", placeItems: "center", gap: 4, marginTop: isCompact ? 4 : matWrestlers.opponent ? 8 : "clamp(36px, 11vh, 150px)" }}>
         <div
           style={{
             display: "flex",
