@@ -20,3 +20,12 @@ Game links are now `/game?id=123456` (old `/game/123456` links redirect on the w
 3. On your phone, on the same Wi-Fi, open `http://192.168.1.42:3000` in Safari.
 
 The app automatically connects to the socket server on port 3001 of the same machine. On Windows, allow Node.js through the firewall on **Private** networks when prompted.
+
+### Releasing to TestFlight / the App Store (no Mac needed)
+
+1. Join the Apple Developer Program, then follow the setup notes at the top of `.github/workflows/ios-testflight.yml` (API key + repo secrets/variables, including `NEXT_PUBLIC_SOCKET_URL` for your game server).
+2. Actions tab → **iOS TestFlight** → Run workflow. The signed build shows up in App Store Connect → TestFlight after processing.
+3. Store listing assets: screenshots (6.9" iPhone) are in `appstore/screenshots/`; the privacy policy URL is `https://<your-site>/privacy`.
+4. In the review notes, mention **Practice vs Computer** so the reviewer can play without a second person.
+
+Regenerate the icon/launch screen after changing the logo: `python3 scripts/make_ios_assets.py && npm run ios:sync`.
