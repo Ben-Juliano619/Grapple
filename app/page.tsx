@@ -265,6 +265,10 @@ export default function Home() {
         </div>
 
         {errorMessage ? <p style={{ color: "#ffd1d1", margin: 0 }}>{errorMessage}</p> : null}
+
+        <a href="/privacy/" style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>
+          Privacy Policy
+        </a>
       </main>
     </div>
   );
