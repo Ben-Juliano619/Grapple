@@ -6,9 +6,14 @@
     "build": "next build",
     "start": "next start",
     "server": "tsx server/index.ts",
-    "test": "node --import tsx --test server/**/*.test.ts app/lib/**/*.test.ts"
+    "test": "node --import tsx --test server/**/*.test.ts app/lib/**/*.test.ts",
+    "build:mobile": "BUILD_TARGET=mobile next build",
+    "ios:sync": "npm run build:mobile && cap sync ios",
+    "ios:open": "cap open ios"
   },
   "dependencies": {
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/ios": "^8.6.2",
     "express": "^5.2.1",
     "next": "^16.1.6",
     "react": "^19.2.4",
@@ -17,6 +22,7 @@
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.2",
     "@types/express": "^5.0.6",
     "@types/node": "^25.2.2",
     "@types/react": "19.2.13",

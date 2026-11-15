@@ -2,11 +2,11 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import type { Card, Position } from "../../../shared/types";
-import { getSocket } from "../../lib/socket";
-import { ensureSessionForGame } from "../../lib/session";
-import { resetGameSessionState, setActiveGameId } from "../../lib/gameSessionState";
+import { useRouter, useSearchParams } from "next/navigation";
+import type { Card, Position } from "../../shared/types";
+import { getSocket } from "../lib/socket";
+import { ensureSessionForGame } from "../lib/session";
+import { resetGameSessionState, setActiveGameId } from "../lib/gameSessionState";
 
 type PlayerState = {
   id: string;
@@ -55,10 +55,10 @@ function getCardImage(card: Card | null): string {
   return `/img/cards/${card.imageFile}`;
 }
 
-export default function GamePage() {
-  const params = useParams();
+export default function GameClient() {
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const gameId = params.id as string;
+  const gameId = searchParams.get("id") ?? "";
 
   const socket = useMemo(() => getSocket(), []);
   const [state, setState] = useState<GameState | null>(null);
@@ -71,6 +71,10 @@ export default function GamePage() {
   const [hasAcknowledgedMatchResult, setHasAcknowledgedMatchResult] = useState(false);
 
   useEffect(() => {
+    if (!gameId) {
+      router.replace("/");
+      return;
+    }
     setActiveGameId(gameId);
     const playerName = window.localStorage.getItem("grapple.playerName") ?? "Player";
     const sessionId = ensureSessionForGame(gameId);
@@ -177,7 +181,12 @@ export default function GamePage() {
   return (
     <div
       style={{
+        boxSizing: "border-box",
         padding: "2px clamp(8px, 1.6vw, 16px) clamp(8px, 1.6vw, 16px)",
+        paddingTop: "max(2px, env(safe-area-inset-top))",
+        paddingBottom: "max(clamp(8px, 1.6vw, 16px), env(safe-area-inset-bottom))",
+        paddingLeft: "max(clamp(8px, 1.6vw, 16px), env(safe-area-inset-left))",
+        paddingRight: "max(clamp(8px, 1.6vw, 16px), env(safe-area-inset-right))",
         fontFamily: "system-ui",
         display: "grid",
         gap: 4,

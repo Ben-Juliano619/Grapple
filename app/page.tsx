@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getSocket } from "./lib/socket";
+import { getSocket, resolveSocketUrl } from "./lib/socket";
 import { createNewGameSession, readGameSessionCookie } from "./lib/session";
 import { getActiveGameId, resetGameSessionState } from "./lib/gameSessionState";
 
@@ -34,7 +34,7 @@ export default function Home() {
 
       try {
         const query = new URLSearchParams(existing);
-        const response = await fetch(`http://localhost:3001/api/session/validate?${query.toString()}`);
+        const response = await fetch(`${resolveSocketUrl()}/api/session/validate?${query.toString()}`);
         if (!response.ok) {
           resetGameSessionState({ clearSessionCookie: true });
           return;
@@ -84,7 +84,7 @@ export default function Home() {
       (response: { ok: boolean; gameId?: string; error?: string }) => {
         if (response.ok && response.gameId) {
           createNewGameSession(response.gameId);
-          router.push(`/game/${response.gameId}`);
+          router.push(`/game?id=${encodeURIComponent(response.gameId)}`);
           return;
         }
         resetGameSessionState({ clearSessionCookie: true });
@@ -131,7 +131,7 @@ export default function Home() {
         }
 
         window.localStorage.setItem("grapple.playerName", trimmedPlayerName);
-        router.push(`/game/${trimmedCode}`);
+        router.push(`/game?id=${encodeURIComponent(trimmedCode)}`);
       },
     );
   }
@@ -142,7 +142,12 @@ export default function Home() {
         minHeight: "100vh",
         display: "grid",
         placeItems: "center",
+        boxSizing: "border-box",
         padding: "clamp(16px, 3vw, 36px)",
+        paddingTop: "max(clamp(16px, 3vw, 36px), env(safe-area-inset-top))",
+        paddingBottom: "max(clamp(16px, 3vw, 36px), env(safe-area-inset-bottom))",
+        paddingLeft: "max(clamp(16px, 3vw, 36px), env(safe-area-inset-left))",
+        paddingRight: "max(clamp(16px, 3vw, 36px), env(safe-area-inset-right))",
         fontFamily: "system-ui",
         background:
           "radial-gradient(circle at center, #922 0%, #7d1f1f 30%, #4a1111 68%, #240808 100%)",

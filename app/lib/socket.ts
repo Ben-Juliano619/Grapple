@@ -3,7 +3,7 @@ import { io, type Socket } from "socket.io-client";
 
 let socket: Socket | null = null;
 
-function resolveSocketUrl() {
+export function resolveSocketUrl() {
   const localSocketUrl = "http://localhost:3001";
   const productionFallbackUrl = "https://grapplewrestlingcardgame.com";
   const useLocalSocket = process.env.NEXT_PUBLIC_USE_LOCAL_SOCKET === "true";

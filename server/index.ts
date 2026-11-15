@@ -17,15 +17,25 @@ const app = express();
 const server = http.createServer(app);
 const port = Number(process.env.PORT || 3001);
 const isProduction = process.env.NODE_ENV === "production";
-const clientOrigin = isProduction ? process.env.CLIENT_URL || "https://grapplewrestlingcardgame.com" : "*";
+const webClientOrigin = process.env.CLIENT_URL || "https://grapplewrestlingcardgame.com";
+// Native app shells (Capacitor) serve the bundled frontend from these origins.
+const nativeAppOrigins = ["capacitor://localhost", "ionic://localhost", "http://localhost", "https://localhost"];
+const allowedOrigins = isProduction ? [webClientOrigin, ...nativeAppOrigins] : "*";
 
-app.use((_, res, next) => {
-  res.header("Access-Control-Allow-Origin", clientOrigin);
+function resolveCorsOrigin(requestOrigin: string | undefined) {
+  if (allowedOrigins === "*") return "*";
+  if (requestOrigin && allowedOrigins.includes(requestOrigin)) return requestOrigin;
+  return webClientOrigin;
+}
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", resolveCorsOrigin(req.headers.origin));
+  res.header("Vary", "Origin");
   next();
 });
 
 const io = new Server(server, {
-  cors: { origin: clientOrigin },
+  cors: { origin: allowedOrigins },
 });
 
 type GameId = string;
@@ -357,5 +367,5 @@ setInterval(() => {
 
 server.listen(port, () => {
   console.log(`Server running on :${port}`);
-  console.log(`Socket.IO CORS origin: ${clientOrigin}`);
+  console.log(`Socket.IO CORS origins: ${Array.isArray(allowedOrigins) ? allowedOrigins.join(", ") : allowedOrigins}`);
 });
