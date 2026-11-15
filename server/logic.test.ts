@@ -19,15 +19,20 @@ function newGame(mode: GameState["gameMode"] = "CLASSIC") {
   return state;
 }
 
+/** Put every dealt card back in the draw pile so tests pick exact hands. */
+function clearHands(state: GameState) {
+  for (const p of state.players) {
+    state.drawPile.push(...p.hand);
+    p.hand = [];
+  }
+}
+
 /** A game already past the opening, with empty hands, A to move. */
 function midGame(positions: { a: Position; b: Position } = { a: "NEUTRAL", b: "NEUTRAL" }) {
   const state = newGame();
   state.phase = "PLAY";
   state.currentTurnIndex = 0;
-  for (const player of state.players) {
-    state.drawPile.push(...player.hand);
-    player.hand = [];
-  }
+  clearHands(state);
   player(state, A).currentPosition = positions.a;
   player(state, B).currentPosition = positions.b;
   return state;
@@ -75,10 +80,7 @@ test("deal: 5 cards each, both neutral, waiting for a Neutral card", () => {
 test("opening: only a Neutral card can be played; drawing loses the turn", () => {
   const state = newGame();
   const first = turn(state);
-  for (const p of state.players) {
-    state.drawPile.push(...p.hand);
-    p.hand = [];
-  }
+  clearHands(state);
   give(state, first, "top_far_arm_chop.png");
   assert.equal(play(state, first, "top_far_arm_chop.png").ok, false);
 
@@ -90,6 +92,7 @@ test("opening: only a Neutral card can be played; drawing loses the turn", () =>
 test("opening Neutral card starts the match", () => {
   const state = newGame();
   const first = turn(state);
+  clearHands(state);
   padHands(state);
   assert.ok(play(state, first, "neutral_single_leg_takedown.png").ok);
   assert.equal(state.phase, "PLAY");
