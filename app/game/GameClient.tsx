@@ -47,6 +47,11 @@ type GameState = {
 const BACK_OF_CARD = "/img/cards/back_of_card.png";
 const RULES_CARDS = ["/img/cards/rules1.png", "/img/cards/rules2.png", "/img/cards/rules3.png"];
 
+// Server messages say e.g. "TOP position"; show positions the way players say them.
+function friendlyError(message: string): string {
+  return message.replace(/\b(TOP|BOTTOM|NEUTRAL)\b/g, (word) => word[0] + word.slice(1).toLowerCase());
+}
+
 function getCardImage(card: Card | null): string {
   if (!card?.imageFile) return BACK_OF_CARD;
   return `/img/cards/${card.imageFile}`;
@@ -62,6 +67,7 @@ export default function GameClient() {
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isErrorFading, setIsErrorFading] = useState(false);
+  const [errorCount, setErrorCount] = useState(0);
   const [showRules, setShowRules] = useState(false);
   const [rulesIndex, setRulesIndex] = useState(0);
   const [now, setNow] = useState(() => Date.now());
@@ -78,7 +84,10 @@ export default function GameClient() {
     const sessionId = ensureSessionForGame(gameId);
 
     const onState = (s: GameState) => setState(s);
-    const onError = (e: unknown) => setError(String(e));
+    const onError = (e: unknown) => {
+      setError(friendlyError(String(e)));
+      setErrorCount((count) => count + 1);
+    };
     const onGameEnded = () => {
       setState(null);
       setHasAcknowledgedMatchResult(false);
@@ -126,17 +135,17 @@ export default function GameClient() {
 
     setIsErrorFading(false);
 
-    const fadeTimer = window.setTimeout(() => setIsErrorFading(true), 7000);
+    const fadeTimer = window.setTimeout(() => setIsErrorFading(true), 3500);
     const clearTimer = window.setTimeout(() => {
       setError(null);
       setIsErrorFading(false);
-    }, 7500);
+    }, 4000);
 
     return () => {
       window.clearTimeout(fadeTimer);
       window.clearTimeout(clearTimer);
     };
-  }, [error]);
+  }, [error, errorCount]);
 
   const me = state?.players.find((player) => player.id === playerId) ?? null;
   const opponents = state?.players.filter((player) => player.id !== playerId) ?? [];
@@ -202,6 +211,7 @@ export default function GameClient() {
   }
 
   const isLobby = state?.phase === "LOBBY";
+  const showHandTray = Boolean(me && !isLobby);
   const isPlaying = state?.phase === "PLAY" || state?.phase === "FIND_START_NEUTRAL";
   const waitingOnChoice = needsEndOfPeriodChoice || pendingRound2Decision || pendingRoundStartPositionChoice;
   const canAct = Boolean(isPlaying && isMyTurn && !waitingOnChoice);
@@ -366,8 +376,14 @@ export default function GameClient() {
           </section>
         ) : null}
 
-        {me && !isLobby ? (
+        {showHandTray && me ? (
           <section className={`${styles.handTray} ${canAct ? styles.handTrayActive : ""}`}>
+            {error ? (
+              // Shown right above your cards, where you just tapped.
+              <div role="alert" key={errorCount} className={`${styles.toast} ${styles.toastAboveHand}`} style={{ opacity: isErrorFading ? 0 : 1 }}>
+                {error}
+              </div>
+            ) : null}
             <div className={styles.handHeader}>
               <div className={styles.who}>
                 <span className={styles.dot} style={{ background: myColor }} />
@@ -398,8 +414,8 @@ export default function GameClient() {
         {!me && state ? <p style={{ textAlign: "center", opacity: 0.8 }}>Joining game…</p> : null}
       </main>
 
-      {error ? (
-        <div role="alert" className={styles.toast} style={{ opacity: isErrorFading ? 0 : 1 }}>
+      {error && !showHandTray ? (
+        <div role="alert" className={`${styles.toast} ${styles.toastTop}`} style={{ opacity: isErrorFading ? 0 : 1 }}>
           {error}
         </div>
       ) : null}
