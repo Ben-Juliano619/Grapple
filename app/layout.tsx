@@ -7,7 +7,7 @@ export const viewport: Viewport = {
   // Lets the app draw edge-to-edge on notched iPhones; content is kept clear
   // of the notch / home indicator by safe-area padding on each page's root.
   viewportFit: "cover",
-  themeColor: "#240808",
+  themeColor: "#031c92",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body
         style={{
           margin: 0,
-          background: "#240808",
+          background: "#071736",
           WebkitTapHighlightColor: "transparent",
         }}
       >

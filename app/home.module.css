@@ -1,0 +1,110 @@
+/* Home screen: matches the app icon / launch screen (the logo's blue). */
+
+.screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: calc(env(safe-area-inset-top) + 16px) max(16px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 16px)
+    max(16px, env(safe-area-inset-left));
+  color: #fff;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: linear-gradient(180deg, #031c92 0%, #031c92 45%, #021061 100%);
+}
+
+.panel {
+  width: 100%;
+  max-width: 420px;
+  display: grid;
+  gap: 18px;
+  justify-items: center;
+}
+
+.logo {
+  width: min(78vw, 320px);
+  height: auto;
+}
+
+.form {
+  width: 100%;
+  display: grid;
+  gap: 10px;
+}
+
+.input {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+}
+
+.input::placeholder { color: rgba(255, 255, 255, 0.6); }
+
+.btn {
+  appearance: none;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn:disabled { opacity: 0.55; cursor: default; }
+
+.primary { background: #e11d2e; border-color: transparent; }
+.light { background: #fff; color: #031c92; border-color: transparent; }
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 2px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.joinRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.joinRow .btn { width: auto; padding-inline: 20px; }
+
+.codeInput {
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
+}
+
+.error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff1f2;
+  color: #7f1d1d;
+  text-align: center;
+}
+
+.footer {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+}

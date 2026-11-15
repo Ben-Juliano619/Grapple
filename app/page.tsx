@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
 import { getSocket, resolveSocketUrl } from "./lib/socket";
+import styles from "./home.module.css";
 import { createNewGameSession, readGameSessionCookie } from "./lib/session";
 import { getActiveGameId, resetGameSessionState } from "./lib/gameSessionState";
 
@@ -145,128 +147,50 @@ export default function Home() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        boxSizing: "border-box",
-        padding: "clamp(16px, 3vw, 36px)",
-        paddingTop: "max(clamp(16px, 3vw, 36px), env(safe-area-inset-top))",
-        paddingBottom: "max(clamp(16px, 3vw, 36px), env(safe-area-inset-bottom))",
-        paddingLeft: "max(clamp(16px, 3vw, 36px), env(safe-area-inset-left))",
-        paddingRight: "max(clamp(16px, 3vw, 36px), env(safe-area-inset-right))",
-        fontFamily: "system-ui",
-        background:
-          "radial-gradient(circle at center, #922 0%, #7d1f1f 30%, #4a1111 68%, #240808 100%)",
-      }}
-    >
-      <main
-        style={{
-          width: "100%",
-          maxWidth: 640,
-          borderRadius: 26,
-          border: "2px solid rgba(255,255,255,0.25)",
-          background:
-            "linear-gradient(145deg, rgba(35, 5, 8, 0.95), rgba(80, 14, 18, 0.95)), repeating-linear-gradient(45deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 2px, transparent 2px, transparent 10px)",
-          boxShadow: "0 30px 60px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.12)",
-          padding: "clamp(20px, 4vw, 38px)",
-          color: "#fff",
-          display: "grid",
-          gap: 18,
-          textAlign: "center",
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0, fontSize: "clamp(2rem, 6vw, 3.4rem)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-            Grapple
-          </h1>
-          <p style={{ margin: "8px 0 0", opacity: 0.9 }}>Deal. Wrestle. Outsmart. Win the mat.</p>
-        </div>
+    <div className={styles.screen}>
+      <main className={styles.panel}>
+        <Image className={styles.logo} src="/img/logos/blue_logo.jpeg" alt="Grapple Wrestling card game" width={637} height={560} priority />
 
-        <div style={{ display: "grid", gap: 12, width: "100%" }}>
+        <div className={styles.form}>
           <input
+            className={styles.input}
             value={playerName}
             onChange={(e) => setPlayerName(e.target.value)}
-            placeholder="Player name"
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.5)",
-              background: "rgba(255,255,255,0.08)",
-              color: "#fff",
-            }}
+            placeholder="Your name"
+            aria-label="Your name"
+            autoComplete="nickname"
+            maxLength={20}
           />
-          <button
-            onClick={createGame}
-            disabled={!isSessionReady}
-            style={{
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid #fff",
-              background: "#f8f8f8",
-              color: "#320a0a",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            Create Game
+          <button className={`${styles.btn} ${styles.primary}`} onClick={createGame} disabled={!isSessionReady}>
+            Play a Friend
           </button>
-          <button
-            onClick={createPracticeGame}
-            disabled={!isSessionReady}
-            style={{
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.8)",
-              background: "transparent",
-              color: "#fff",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
+          <button className={`${styles.btn} ${styles.light}`} onClick={createPracticeGame} disabled={!isSessionReady}>
             Practice vs Computer
           </button>
 
+          <div className={styles.divider}>Have a code?</div>
+          <div className={styles.joinRow}>
+            <input
+              className={`${styles.input} ${styles.codeInput}`}
+              value={gameCode}
+              onChange={(e) => setGameCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="Game code"
+              aria-label="Game code"
+              inputMode="numeric"
+              autoComplete="off"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") joinGame();
+              }}
+            />
+            <button className={styles.btn} onClick={joinGame} disabled={!isSessionReady}>
+              Join
+            </button>
+          </div>
+
+          {errorMessage ? <p className={styles.error}>{errorMessage}</p> : null}
         </div>
 
-        <div style={{ display: "grid", gap: 10, width: "100%" }}>
-          <input
-            value={gameCode}
-            onChange={(e) => setGameCode(e.target.value)}
-            placeholder="Enter 6-digit game id"
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.5)",
-              background: "rgba(255,255,255,0.08)",
-              color: "#fff",
-            }}
-          />
-          <button
-            onClick={joinGame}
-            disabled={!isSessionReady}
-            style={{
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.8)",
-              background: "rgba(255,255,255,0.15)",
-              color: "#fff",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            Join Game
-          </button>
-        </div>
-
-        {errorMessage ? <p style={{ color: "#ffd1d1", margin: 0 }}>{errorMessage}</p> : null}
-
-        <a href="/privacy/" style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>
+        <a className={styles.footer} href="/privacy/">
           Privacy Policy
         </a>
       </main>

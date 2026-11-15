@@ -8,6 +8,7 @@ import { getSocket } from "../lib/socket";
 import { ensureSessionForGame } from "../lib/session";
 import { resetGameSessionState, setActiveGameId } from "../lib/gameSessionState";
 import WrestlingMat from "./WrestlingMat";
+import styles from "./game.module.css";
 import { resultFeedback, shareGameCode, tapFeedback, turnFeedback } from "../lib/native";
 
 type PlayerState = {
@@ -43,32 +44,12 @@ type GameState = {
   rematchVotes: string[];
 };
 
-const positionLabels: Record<Position, string> = {
-  NEUTRAL: "Neutral",
-  TOP: "Top",
-  BOTTOM: "Bottom",
-};
-
 const BACK_OF_CARD = "/img/cards/back_of_card.png";
 const RULES_CARDS = ["/img/cards/rules1.png", "/img/cards/rules2.png", "/img/cards/rules3.png"];
 
 function getCardImage(card: Card | null): string {
   if (!card?.imageFile) return BACK_OF_CARD;
   return `/img/cards/${card.imageFile}`;
-}
-
-// Phones get a tighter layout: smaller piles, a swipeable hand and no big
-// spacers, so the whole table fits on one screen without scrolling.
-function useIsCompact() {
-  const [isCompact, setIsCompact] = useState(false);
-  useEffect(() => {
-    const query = window.matchMedia("(max-width: 640px)");
-    const update = () => setIsCompact(query.matches);
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-  return isCompact;
 }
 
 export default function GameClient() {
@@ -85,7 +66,6 @@ export default function GameClient() {
   const [rulesIndex, setRulesIndex] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [hasAcknowledgedMatchResult, setHasAcknowledgedMatchResult] = useState(false);
-  const isCompact = useIsCompact();
   const [inviteLabel, setInviteLabel] = useState("Invite a friend");
 
   useEffect(() => {
@@ -163,8 +143,6 @@ export default function GameClient() {
   const currentPlayer = state?.players[state.currentTurnIndex];
   const isMyTurn = Boolean(currentPlayer && currentPlayer.id === playerId);
   const topCard = state?.discardPile[state.discardPile.length - 1] ?? null;
-  const cardWidth = isCompact ? "min(30vw, 140px)" : "clamp(124px, 12.5vw, 190px)";
-  const handCardWidth = isCompact ? "min(31vw, 150px)" : cardWidth;
   const needsEndOfPeriodChoice = Boolean(state && playerId && state.pendingEndOfPeriodPlayerId === playerId);
   const rematchVotesCount = state?.rematchVotes.length ?? 0;
   const hasVotedForRematch = Boolean(playerId && state?.rematchVotes.includes(playerId));
@@ -183,15 +161,6 @@ export default function GameClient() {
   const roundTimerLabel =
     state?.isOvertime ? "No time limit (Overtime)" : roundSecondsLeft === null ? "--:--" : `${Math.floor(roundSecondsLeft / 60).toString().padStart(2, "0")}:${(roundSecondsLeft % 60).toString().padStart(2, "0")}`;
 
-
-  const getBannerLabel = (displayPlayerId: string) => {
-    if (!state?.playerBanners[displayPlayerId]) return null;
-    const banner = `${state.playerBanners[displayPlayerId]} Banner`;
-
-    if (state.phase !== "ENDED" || state.gameResult !== "WIN") return banner;
-    if (state.gameWinnerPlayerId === displayPlayerId) return `${banner} - Winner`;
-    return `${banner} - Lose`;
-  };
 
   // Haptic nudge when it becomes your turn, and on the final result.
   const isMyActiveTurn = Boolean(isMyTurn && (state?.phase === "PLAY" || state?.phase === "FIND_START_NEUTRAL"));
@@ -232,581 +201,310 @@ export default function GameClient() {
     socket.emit("turn:endOfPeriodPosition", { gameId, position });
   }
 
+  const isLobby = state?.phase === "LOBBY";
+  const isPlaying = state?.phase === "PLAY" || state?.phase === "FIND_START_NEUTRAL";
+  const waitingOnChoice = needsEndOfPeriodChoice || pendingRound2Decision || pendingRoundStartPositionChoice;
+  const canAct = Boolean(isPlaying && isMyTurn && !waitingOnChoice);
+  const myColor = matWrestlers.me?.color ?? "#f59e0b";
+  const opponentColor = matWrestlers.opponent?.color ?? "#dc2626";
+
+  // One clear line of status in the top bar instead of scattered labels.
+  let statusText = "Connecting…";
+  if (state) {
+    if (isLobby) statusText = opponent ? "Ready to start" : "Waiting…";
+    else if (state.phase === "ENDED") statusText = matchResultLabel;
+    else if (waitingOnChoice) statusText = "Your choice";
+    else if (isMyTurn) statusText = "Your turn";
+    else if (currentPlayer) statusText = `${currentPlayer.name}'s turn`;
+  }
+  const statusIsMine = Boolean(state && !isLobby && state.phase !== "ENDED" && (isMyTurn || waitingOnChoice));
+  const roundLine =
+    state?.gameMode === "THREE_ROUND" && !isLobby && state.phase !== "ENDED"
+      ? state.isOvertime
+        ? "Overtime · no time limit"
+        : `Round ${state.currentRound} · ${roundTimerLabel}`
+      : null;
+  const handHint =
+    state?.phase === "FIND_START_NEUTRAL" && isMyTurn
+      ? "Play Neutral or draw"
+      : canAct
+        ? "Tap a card to play"
+        : null;
+
+  const bannerBadge = (id: string) => {
+    const banner = state?.playerBanners[id];
+    if (!banner || state?.gameMode !== "THREE_ROUND") return null;
+    return <span className={`${styles.badge} ${banner === "GREEN" ? styles.badgeGreen : styles.badgeRed}`}>{banner === "GREEN" ? "Green" : "Red"}</span>;
+  };
+
+  const positionButtons = (onChoose: (position: Position) => void) => (
+    <>
+      <button className={`${styles.btn} ${styles.btnLight}`} onClick={() => onChoose("TOP")}>
+        Top
+      </button>
+      <button className={`${styles.btn} ${styles.btnLight}`} onClick={() => onChoose("BOTTOM")}>
+        Bottom
+      </button>
+      <button className={`${styles.btn} ${styles.btnLight}`} onClick={() => onChoose("NEUTRAL")}>
+        Neutral
+      </button>
+    </>
+  );
+
   return (
-    <div
-      style={{
-        boxSizing: "border-box",
-        padding: "2px clamp(8px, 1.6vw, 16px) clamp(8px, 1.6vw, 16px)",
-        paddingTop: "max(2px, env(safe-area-inset-top))",
-        paddingBottom: "max(clamp(8px, 1.6vw, 16px), env(safe-area-inset-bottom))",
-        paddingLeft: "max(clamp(8px, 1.6vw, 16px), env(safe-area-inset-left))",
-        paddingRight: "max(clamp(8px, 1.6vw, 16px), env(safe-area-inset-right))",
-        fontFamily: "system-ui",
-        display: "grid",
-        gap: 4,
-        alignContent: "start",
-        minHeight: isCompact ? "100dvh" : "100vh",
-        background:
-          "radial-gradient(circle at 50% 44%, rgba(196, 38, 38, 0.5) 0%, rgba(196, 38, 38, 0.5) 18%, transparent 19%, transparent 34%, rgba(18, 73, 148, 0.72) 35%, rgba(18, 73, 148, 0.72) 47%, transparent 48%), linear-gradient(180deg, #2d5c96 0%, #1f4170 100%)",
-        // iOS Safari ignores fixed backgrounds and the gradient stops short.
-        backgroundAttachment: isCompact ? "scroll" : "fixed",
-        color: "#f9fbff",
-      }}
-    >
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, position: "relative" }}>
-        <div style={{ display: "grid", gap: 0, alignContent: "start" }}>
-          <h2 style={{ margin: 0, fontSize: isCompact ? "1.25rem" : undefined }}>Grapple</h2>
-          <p style={{ margin: 0, fontSize: isCompact ? 13 : undefined }}>Game ID: {gameId}</p>
+    <div className={styles.screen}>
+      <header className={styles.topBar}>
+        <div className={styles.barLeft}>
+          <button className={styles.barButton} onClick={leaveGame}>
+            ‹ Leave
+          </button>
         </div>
-        {state?.gameMode === "THREE_ROUND" && !isCompact ? (
-          <div
-            style={{
-              position: "absolute",
-              left: "50%",
-              top: 0,
-              transform: "translateX(-50%)",
-              display: "grid",
-              justifyItems: "center",
-            }}
-          >
-            {state?.gameMode === "THREE_ROUND" ? (
-              <div
-                style={{
-                  background: "rgba(0,0,0,0.35)",
-                  border: "1px solid rgba(255,255,255,0.4)",
-                  padding: "4px 10px",
-                  color: "#fff",
-                  borderRadius: 8,
-                  width: "max-content",
-                  maxWidth: "min(100%, 560px)",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  minHeight: 0,
-                }}
-              >
-                {state.isOvertime ? "Overtime" : `Round ${state.currentRound}`} {state.gameResult === "DRAW" ? "- Draw" : ""}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        {error ? (
-          // Error toast: fixed to the top of the screen and wraps long messages,
-          // so it can never run off the edge (phones, landscape or desktop).
-          <div
-            role="alert"
-            style={{
-              position: "fixed",
-              left: "50%",
-              top: "calc(env(safe-area-inset-top) + 8px)",
-              transform: "translateX(-50%)",
-              zIndex: 40,
-              width: "max-content",
-              maxWidth: "min(560px, calc(100vw - 24px))",
-              background: "#fee",
-              border: "1px solid #f5c2c2",
-              padding: "8px 12px",
-              color: "#5f0000",
-              borderRadius: 8,
-              boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
-              textAlign: "center",
-              whiteSpace: "normal",
-              overflowWrap: "anywhere",
-              opacity: isErrorFading ? 0 : 1,
-              transition: "opacity 500ms ease",
-              pointerEvents: "none",
-            }}
-          >
-            {error}
-          </div>
-        ) : null}
-        <div style={{ textAlign: "right", display: "grid", gap: 2, justifyItems: "end" }}>
-          <div style={{ fontSize: isCompact ? 13 : undefined }}>
-            <div>{currentPlayer ? `Turn: ${currentPlayer.name}` : "Waiting for players..."}</div>
-            {state?.gameMode === "THREE_ROUND" ? (
-              isCompact ? (
-                <div>
-                  {state.isOvertime ? "Overtime" : `Round ${state.currentRound}`} · {state.isOvertime ? "No limit" : roundTimerLabel}
-                </div>
-              ) : (
-                <div>Round Timer: {roundTimerLabel}</div>
-              )
-            ) : null}
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
+        <div className={styles.status}>
+          <div className={`${styles.pill} ${statusIsMine ? styles.pillActive : ""}`}>{statusText}</div>
+          {roundLine ? <div className={styles.subStatus}>{roundLine}</div> : null}
+        </div>
+        <div className={styles.barRight}>
           <button
-            onClick={leaveGame}
-            style={{
-              padding: isCompact ? "6px 10px" : "8px 14px",
-              borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.7)",
-              background: "transparent",
-              color: "#fff",
-              fontWeight: 600,
-              cursor: "pointer",
-              marginTop: 2,
-            }}
-          >
-            Leave
-          </button>
-          <button
+            className={styles.barButton}
             onClick={() => {
-              setShowRules((value) => {
-                const next = !value;
-                if (next) {
-                  setRulesIndex(0);
-                }
-                return next;
-              });
-            }}
-            style={{
-              padding: isCompact ? "6px 12px" : "8px 14px",
-              borderRadius: 8,
-              border: "1px solid #111",
-              background: "#fff",
-              fontWeight: 600,
-              cursor: "pointer",
-              marginTop: 2,
+              setRulesIndex(0);
+              setShowRules(true);
             }}
           >
-            {showRules ? "Hide Rules" : "Rules"}
+            Rules
           </button>
-          </div>
         </div>
       </header>
 
-      {showRules ? (
-        <section
-          style={{
-            border: "1px solid rgba(255,255,255,0.35)",
-            borderRadius: 12,
-            padding: 16,
-            background: "rgba(7, 24, 49, 0.7)",
-            display: "grid",
-            gap: 12,
-            justifyItems: "center",
-          }}
-        >
-          <h3 style={{ margin: 0 }}>Rules Card {rulesIndex + 1} of {RULES_CARDS.length}</h3>
-          <Image
-            src={RULES_CARDS[rulesIndex]}
-            alt={`Rules card ${rulesIndex + 1}`}
-            width={600}
-            height={860}
-            style={{ width: "min(100%, 600px)", height: "auto", borderRadius: 10, border: "1px solid #ccc" }}
-          />
-          <div style={{ display: "flex", gap: 10 }}>
-            <button
-              onClick={() => setRulesIndex((index) => Math.max(0, index - 1))}
-              disabled={rulesIndex === 0}
-              style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #111", background: "#fff", fontWeight: 600 }}
-            >
-              ← Previous
-            </button>
-            <button
-              onClick={() => setRulesIndex((index) => Math.min(RULES_CARDS.length - 1, index + 1))}
-              disabled={rulesIndex === RULES_CARDS.length - 1}
-              style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #111", background: "#fff", fontWeight: 600 }}
-            >
-              Next →
-            </button>
-          </div>
-        </section>
-      ) : null}
-
-      <section style={{ display: "grid", gap: 4 }}>
-        {isCompact ? null : <h3 style={{ margin: 0 }}>Opponents</h3>}
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
-          {opponents.length === 0 ? (
-            <div>Waiting for opponents to join.</div>
-          ) : (
-            opponents.map((player) => (
-              <div
-                key={player.id}
-                style={{
-                  border: "1px solid rgba(255,255,255,0.35)",
-                  borderRadius: 12,
-                  padding: isCompact ? "6px 10px" : "10px 12px 8px",
-                  minWidth: isCompact ? 0 : 180,
-                  width: isCompact ? "100%" : undefined,
-                  boxSizing: "border-box",
-                  background: "rgba(7, 24, 49, 0.65)",
-                  display: "grid",
-                  gap: 4,
-                }}
-              >
-                <div style={{ fontWeight: 600, display: "flex", justifyContent: "space-between", gap: 8 }}>
-                  <span>{player.name}</span>
-                  {isCompact ? (
-                    <span style={{ fontWeight: 400, fontSize: 12 }}>
-                      {positionLabels[player.currentPosition]} · Pen {player.penaltyPoints}
-                    </span>
-                  ) : null}
-                </div>
-                {state?.gameMode === "THREE_ROUND" && state.playerBanners[player.id] ? (
-                  <div style={{ marginTop: isCompact ? 0 : 6, justifySelf: "start", display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, color: "#fff", background: state.playerBanners[player.id] === "GREEN" ? "#16a34a" : "#dc2626" }}>
-                    {getBannerLabel(player.id)}
-                  </div>
-                ) : null}
-                {isCompact ? null : (
-                  <>
-                    <div style={{ fontSize: 12 }}>Penalties: {player.penaltyPoints}</div>
-                    <div style={{ fontSize: 12 }}>Position: {positionLabels[player.currentPosition]}</div>
-                  </>
-                )}
-                <div style={{ marginTop: isCompact ? 2 : 6, display: "flex", gap: isCompact ? 4 : 6, flexWrap: "wrap" }}>
-                  {Array.from({ length: player.hand.length }).map((_, index) => (
-                    <Image
-                      key={index}
-                      src={BACK_OF_CARD}
-                      alt="Face down card"
-                      width={22}
-                      height={32}
-                      style={{ width: isCompact ? 14 : 22, height: isCompact ? 20 : 32, borderRadius: isCompact ? 2 : 4, border: "1px solid #555" }}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-
-      {matWrestlers.me && matWrestlers.opponent ? (
-        <section style={{ marginTop: isCompact ? 2 : "clamp(4px, 1.5vh, 20px)" }}>
-          <WrestlingMat me={matWrestlers.me} opponent={matWrestlers.opponent} height={isCompact ? 72 : 110} />
-        </section>
-      ) : null}
-
-      <section style={{ display: "grid", placeItems: "center", gap: 4, marginTop: isCompact ? 4 : matWrestlers.opponent ? 8 : "clamp(36px, 11vh, 150px)" }}>
-        <div
-          style={{
-            display: "flex",
-            gap: isCompact ? 14 : "clamp(16px, 2.8vw, 40px)",
-            alignItems: "center",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            width: "100%",
-          }}
-        >
-          <button
-            onClick={() => {
-              tapFeedback();
-              socket.emit("turn:draw", { gameId });
-            }}
-            disabled={!state || !isMyTurn || state.phase === "LOBBY" || needsEndOfPeriodChoice || pendingRound2Decision || pendingRoundStartPositionChoice}
-            style={{
-              width: cardWidth,
-              borderRadius: 12,
-              background: "#fff",
-              border: "2px solid #111827",
-              fontWeight: 600,
-              overflow: "hidden",
-              padding: isCompact ? 4 : 8,
-            }}
-          >
-            <Image src={BACK_OF_CARD} alt="Draw pile" width={190} height={272} style={{ width: "100%", height: "auto", borderRadius: 8 }} />
-            <div style={{ fontSize: isCompact ? 11 : 12, marginTop: isCompact ? 2 : 6 }}>{state ? state.drawPile.length : 0} cards</div>
-          </button>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ marginBottom: isCompact ? 2 : 6, fontWeight: 600, fontSize: isCompact ? 13 : undefined }}>Discard</div>
-            <div style={{ width: cardWidth }}>
-              <Image
-                src={getCardImage(topCard)}
-                alt={topCard ? topCard.name : "No card"}
-                width={190}
-                height={272}
-                style={{ width: "100%", height: "auto", borderRadius: 12, border: "2px solid #ccc" }}
-              />
+      <main className={styles.content}>
+        {opponent ? (
+          <div className={styles.opponentRow}>
+            <div className={styles.who}>
+              <span className={styles.dot} style={{ background: opponentColor }} />
+              <span className={styles.whoName}>{opponent.name}</span>
+              {bannerBadge(opponent.id)}
             </div>
-          </div>
-        </div>
-
-        {state?.phase === "LOBBY" ? (
-          <div style={{ display: "grid", gap: 10, justifyItems: "center" }}>
-            {opponents.length === 0 ? (
-              <button
-                onClick={() => void inviteFriend()}
-                style={{
-                  padding: "10px 18px",
-                  borderRadius: 8,
-                  border: "1px solid #fff",
-                  background: "#fff",
-                  color: "#0b1f3d",
-                  fontWeight: 700,
-                }}
-              >
-                {inviteLabel} · {gameId}
-              </button>
+            {!isLobby ? (
+              <div className={styles.meta}>
+                {opponent.penaltyPoints > 0 ? <span className={`${styles.badge} ${styles.badgeWarn}`}>Penalty {opponent.penaltyPoints}</span> : null}
+                <span>
+                  {opponent.hand.length} {opponent.hand.length === 1 ? "card" : "cards"}
+                </span>
+              </div>
             ) : null}
-            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-              Game mode
-              <select
-                value={state.gameMode}
-                onChange={(e) => socket.emit("game:setMode", { gameId, mode: e.target.value })}
-                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #111" }}
-              >
-                <option value="CLASSIC">Classic</option>
-                <option value="THREE_ROUND">3 two-minute rounds</option>
-              </select>
-            </label>
+          </div>
+        ) : null}
+
+        {matWrestlers.me && matWrestlers.opponent ? (
+          <WrestlingMat me={matWrestlers.me} opponent={matWrestlers.opponent} className={styles.mat} svgClassName={styles.matSvg} />
+        ) : null}
+
+        {isLobby ? (
+          <section className={styles.lobbyCard}>
+            {opponent ? (
+              <h2 className={styles.lobbyTitle}>{opponent.name} is ready</h2>
+            ) : (
+              <>
+                <h2 className={styles.lobbyTitle}>Waiting for an opponent</h2>
+                <div className={styles.label}>Game code</div>
+                <div className={styles.code}>{gameId}</div>
+                <button className={`${styles.btn} ${styles.btnLight}`} onClick={() => void inviteFriend()}>
+                  {inviteLabel}
+                </button>
+              </>
+            )}
+            <div className={styles.label}>Game mode</div>
+            <div className={styles.segmented} role="radiogroup" aria-label="Game mode">
+              {(
+                [
+                  ["CLASSIC", "Classic"],
+                  ["THREE_ROUND", "3 Rounds"],
+                ] as const
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  role="radio"
+                  aria-checked={state?.gameMode === mode}
+                  className={`${styles.segment} ${state?.gameMode === mode ? styles.segmentOn : ""}`}
+                  onClick={() => socket.emit("game:setMode", { gameId, mode })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <button
+              className={`${styles.btn} ${styles.btnPrimary}`}
               onClick={() => socket.emit("game:start", { gameId })}
               disabled={!state || state.players.length < 2}
-              style={{
-                padding: "10px 18px",
-                borderRadius: 8,
-                border: "1px solid #111",
-                background: "#111",
-                color: "#fff",
-                fontWeight: 600,
-              }}
             >
               Start Game
             </button>
-          </div>
-        ) : null}
-      </section>
-
-      <section style={{ display: "grid", gap: 4 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-          <h3 style={{ margin: 0, fontSize: isCompact ? 15 : undefined }}>Your Hand {me ? `(${me.hand.length})` : ""}</h3>
-          <h3 style={{ margin: 0, fontSize: isCompact ? 15 : undefined }}>Position: {me ? positionLabels[me.currentPosition] : "—"}</h3>
-        </div>
-        {me ? (
-          <>
-            {state?.gameMode === "THREE_ROUND" && playerId && state.playerBanners[playerId] ? (
-              <div style={{ justifySelf: "start", display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, color: "#fff", background: state.playerBanners[playerId] === "GREEN" ? "#16a34a" : "#dc2626" }}>
-                {getBannerLabel(playerId)}
-              </div>
-            ) : null}
-            <div
-              style={
-                isCompact
-                  ? {
-                      // Swipeable single row so the whole hand stays on screen.
-                      display: "flex",
-                      gap: 8,
-                      overflowX: "auto",
-                      scrollSnapType: "x mandatory",
-                      WebkitOverflowScrolling: "touch",
-                      paddingBottom: 6,
-                      width: "100%",
-                    }
-                  : { display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(clamp(124px, 12.5vw, 190px), 1fr))", width: "100%" }
-              }
-            >
-            {me.hand.map((card) => (
+          </section>
+        ) : state ? (
+          <section className={styles.piles}>
+            <div>
               <button
-                key={card.id}
+                className={`${styles.pile} ${styles.pileButton}`}
                 onClick={() => {
                   tapFeedback();
-                  socket.emit("turn:playCard", { gameId, cardId: card.id });
+                  socket.emit("turn:draw", { gameId });
                 }}
-                disabled={!isMyTurn || state?.phase === "LOBBY" || needsEndOfPeriodChoice || pendingRound2Decision || pendingRoundStartPositionChoice}
-                style={{
-                  width: isCompact ? handCardWidth : "100%",
-                  maxWidth: handCardWidth,
-                  flex: isCompact ? "0 0 auto" : undefined,
-                  scrollSnapAlign: isCompact ? "start" : undefined,
-                  borderRadius: isCompact ? 8 : 12,
-                  border: "2px solid #111",
-                  background: "#fff",
-                  padding: 0,
-                  overflow: "hidden",
-                }}
+                disabled={!canAct}
+                aria-label={`Draw a card (${state.drawPile.length} left)`}
               >
-                <Image
-                  src={getCardImage(card)}
-                  alt={card.name}
-                  width={190}
-                  height={272}
-                  style={{ width: "100%", height: "auto", display: "block" }}
-                />
+                <Image src={BACK_OF_CARD} alt="Draw pile" width={190} height={262} />
+                <span className={styles.pileCount}>{state.drawPile.length}</span>
               </button>
-            ))}
+              <div className={styles.pileLabel}>Draw</div>
             </div>
-          </>
-        ) : (
-          <div>Joining game…</div>
-        )}
-      </section>
+            <div>
+              <div className={`${styles.pile} ${styles.discard}`}>
+                <Image src={getCardImage(topCard)} alt={topCard ? `Last played: ${topCard.name}` : "No card played yet"} width={190} height={262} />
+              </div>
+              <div className={styles.pileLabel}>Last played</div>
+            </div>
+          </section>
+        ) : null}
+
+        {me && !isLobby ? (
+          <section className={`${styles.handTray} ${canAct ? styles.handTrayActive : ""}`}>
+            <div className={styles.handHeader}>
+              <div className={styles.who}>
+                <span className={styles.dot} style={{ background: myColor }} />
+                <span>Your hand · {me.hand.length}</span>
+                {bannerBadge(me.id)}
+                {me.penaltyPoints > 0 ? <span className={`${styles.badge} ${styles.badgeWarn}`}>Penalty {me.penaltyPoints}</span> : null}
+              </div>
+              {handHint ? <div className={styles.hint}>{handHint}</div> : null}
+            </div>
+            <div className={styles.hand}>
+              {me.hand.map((card) => (
+                <button
+                  key={card.id}
+                  className={styles.handCard}
+                  onClick={() => {
+                    tapFeedback();
+                    socket.emit("turn:playCard", { gameId, cardId: card.id });
+                  }}
+                  disabled={!canAct}
+                >
+                  <Image src={getCardImage(card)} alt={card.name} width={190} height={262} />
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {!me && state ? <p style={{ textAlign: "center", opacity: 0.8 }}>Joining game…</p> : null}
+      </main>
+
+      {error ? (
+        <div role="alert" className={styles.toast} style={{ opacity: isErrorFading ? 0 : 1 }}>
+          {error}
+        </div>
+      ) : null}
+
+      {showRules ? (
+        <div className={styles.overlay} onClick={() => setShowRules(false)}>
+          <div className={`${styles.sheet} ${styles.sheetWide}`} onClick={(event) => event.stopPropagation()}>
+            <h3 className={styles.sheetTitle}>How to play</h3>
+            <Image
+              className={styles.rulesImage}
+              src={RULES_CARDS[rulesIndex]}
+              alt={`Rules card ${rulesIndex + 1}`}
+              width={600}
+              height={830}
+            />
+            <div className={styles.rulesNav}>
+              <button className={styles.btn} onClick={() => setRulesIndex((index) => Math.max(0, index - 1))} disabled={rulesIndex === 0}>
+                ← Back
+              </button>
+              <span className={styles.subStatus}>
+                {rulesIndex + 1} / {RULES_CARDS.length}
+              </span>
+              <button
+                className={styles.btn}
+                onClick={() => setRulesIndex((index) => Math.min(RULES_CARDS.length - 1, index + 1))}
+                disabled={rulesIndex === RULES_CARDS.length - 1}
+              >
+                Next →
+              </button>
+            </div>
+            <button className={`${styles.btn} ${styles.btnLight}`} onClick={() => setShowRules(false)}>
+              Done
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {pendingRound2Decision ? (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.58)", display: "grid", placeItems: "center", zIndex: 32, padding: 16 }}>
-          <div style={{ width: "min(92vw, 480px)", borderRadius: 14, border: "1px solid rgba(255,255,255,0.4)", background: "#0b1f3d", padding: 18, display: "grid", gap: 12 }}>
-            <h3 style={{ margin: 0 }}>Round 2 Coin Flip</h3>
-            <p style={{ margin: 0 }}>You won the coin flip. Choose whether to pick the starting position or defer the choice.</p>
-            <button onClick={() => socket.emit("round:coinWinnerDecision", { gameId, deferStartChoice: false })} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}>
-              I pick the starting position
+        <div className={styles.overlay}>
+          <div className={styles.sheet}>
+            <h3 className={styles.sheetTitle}>You won the coin flip</h3>
+            <p className={styles.sheetText}>Pick the starting position for round 2, or let your opponent choose.</p>
+            <button className={`${styles.btn} ${styles.btnLight}`} onClick={() => socket.emit("round:coinWinnerDecision", { gameId, deferStartChoice: false })}>
+              I&apos;ll pick
             </button>
-            <button onClick={() => socket.emit("round:coinWinnerDecision", { gameId, deferStartChoice: true })} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}>
-              Defer choice to opponent
+            <button className={styles.btn} onClick={() => socket.emit("round:coinWinnerDecision", { gameId, deferStartChoice: true })}>
+              Defer to opponent
             </button>
           </div>
         </div>
       ) : null}
 
       {pendingRoundStartPositionChoice ? (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.58)", display: "grid", placeItems: "center", zIndex: 33, padding: 16 }}>
-          <div style={{ width: "min(92vw, 480px)", borderRadius: 14, border: "1px solid rgba(255,255,255,0.4)", background: "#0b1f3d", padding: 18, display: "grid", gap: 12 }}>
-            <h3 style={{ margin: 0 }}>Choose Round Start Position</h3>
-            <p style={{ margin: 0 }}>Pick the starting position for this round.</p>
-            <button onClick={() => socket.emit("round:startPosition", { gameId, position: "TOP" })} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}>
-              Choose Top
-            </button>
-            <button onClick={() => socket.emit("round:startPosition", { gameId, position: "BOTTOM" })} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}>
-              Choose Bottom
-            </button>
-            <button onClick={() => socket.emit("round:startPosition", { gameId, position: "NEUTRAL" })} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}>
-              Choose Neutral
-            </button>
+        <div className={styles.overlay}>
+          <div className={styles.sheet}>
+            <h3 className={styles.sheetTitle}>Choose your starting position</h3>
+            <p className={styles.sheetText}>Where do you want to start this round?</p>
+            {positionButtons((position) => socket.emit("round:startPosition", { gameId, position }))}
+          </div>
+        </div>
+      ) : null}
+
+      {needsEndOfPeriodChoice ? (
+        <div className={styles.overlay}>
+          <div className={styles.sheet}>
+            <h3 className={styles.sheetTitle}>End of period</h3>
+            <p className={styles.sheetText}>Choose your position for the next period.</p>
+            {positionButtons(chooseEndOfPeriodPosition)}
           </div>
         </div>
       ) : null}
 
       {needsMatchResultPopup ? (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.58)",
-            display: "grid",
-            placeItems: "center",
-            zIndex: 36,
-            padding: 16,
-          }}
-        >
-          <div
-            style={{
-              width: "min(92vw, 420px)",
-              borderRadius: 14,
-              border: "1px solid rgba(255,255,255,0.4)",
-              background: "#0b1f3d",
-              padding: 18,
-              display: "grid",
-              gap: 12,
-            }}
-          >
-            <h3 style={{ margin: 0 }}>{matchResultLabel}</h3>
-            <button
-              onClick={() => setHasAcknowledgedMatchResult(true)}
-              style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
-            >
-              Okay
+        <div className={styles.overlay}>
+          <div className={styles.sheet}>
+            <h3 className={styles.sheetTitle}>{matchResultLabel}</h3>
+            {state?.gameMode === "THREE_ROUND" ? (
+              <p className={styles.sheetText}>Round wins: {state.players.map((p) => `${p.name} ${state.roundWins[p.id] ?? 0}`).join(" · ")}</p>
+            ) : null}
+            <button className={`${styles.btn} ${styles.btnLight}`} onClick={() => setHasAcknowledgedMatchResult(true)}>
+              Continue
             </button>
           </div>
         </div>
       ) : null}
 
       {needsRematchAgreement && hasAcknowledgedMatchResult ? (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.58)",
-            display: "grid",
-            placeItems: "center",
-            zIndex: 35,
-            padding: 16,
-          }}
-        >
-          <div
-            style={{
-              width: "min(92vw, 520px)",
-              borderRadius: 14,
-              border: "1px solid rgba(255,255,255,0.4)",
-              background: "#0b1f3d",
-              padding: 18,
-              display: "grid",
-              gap: 12,
-            }}
-          >
-            <h3 style={{ margin: 0 }}>Game Over</h3>
-            {state?.gameMode === "THREE_ROUND" ? <p style={{ margin: 0 }}>Round wins: {state.players.map((p) => `${p.name} ${state.roundWins[p.id] ?? 0}`).join(" • ")}</p> : null}
-            {state?.isOvertime ? <p style={{ margin: 0 }}>Overtime active: first pin or player to use all cards wins the game.</p> : null}
-            <p style={{ margin: 0 }}>Do both players want a rematch?</p>
-            <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontSize: 13, opacity: 0.9 }}>Rematch agreement</div>
-              <div style={{ width: "100%", height: 12, borderRadius: 999, background: "rgba(255,255,255,0.2)", overflow: "hidden" }}>
-                <div
-                  style={{
-                    width: `${Math.min(100, (rematchVotesCount / 2) * 100)}%`,
-                    height: "100%",
-                    background: "#3bd37f",
-                    transition: "width 150ms ease",
-                  }}
-                />
-              </div>
-              <div style={{ fontWeight: 700 }}>{Math.min(rematchVotesCount, 2)}/2</div>
+        <div className={styles.overlay}>
+          <div className={styles.sheet}>
+            <h3 className={styles.sheetTitle}>Rematch?</h3>
+            {state?.isOvertime ? <p className={styles.sheetText}>Overtime: first pin or first to empty their hand wins.</p> : null}
+            <div className={styles.progress} aria-label={`${Math.min(rematchVotesCount, 2)} of 2 players ready`}>
+              <div className={styles.progressFill} style={{ width: `${Math.min(100, (rematchVotesCount / 2) * 100)}%` }} />
             </div>
-
-            <div style={{ display: "grid", gap: 8 }}>
-              <button
-                onClick={() => socket.emit("game:requestRematch", { gameId })}
-                disabled={hasVotedForRematch}
-                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
-              >
-                {hasVotedForRematch ? "Waiting for opponent..." : "Rematch"}
-              </button>
-
-              <button
-                onClick={() => {
-                  socket.emit("game:end", { gameId });
-                }}
-                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
-              >
-                End Game (Back to Menu)
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {needsEndOfPeriodChoice ? (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.58)",
-            display: "grid",
-            placeItems: "center",
-            zIndex: 30,
-            padding: 16,
-          }}
-        >
-          <div
-            style={{
-              width: "min(92vw, 480px)",
-              borderRadius: 14,
-              border: "1px solid rgba(255,255,255,0.4)",
-              background: "#0b1f3d",
-              padding: 18,
-              display: "grid",
-              gap: 12,
-            }}
-          >
-            <h3 style={{ margin: 0 }}>End of Period</h3>
-            <p style={{ margin: 0 }}>Choose the position for the next sequence.</p>
-            <div style={{ display: "grid", gap: 8 }}>
-              <button
-                onClick={() => chooseEndOfPeriodPosition("TOP")}
-                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
-              >
-                Choose Top
-              </button>
-              <button
-                onClick={() => chooseEndOfPeriodPosition("BOTTOM")}
-                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
-              >
-                Choose Bottom
-              </button>
-              <button
-                onClick={() => chooseEndOfPeriodPosition("NEUTRAL")}
-                style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #fff", background: "#fff", fontWeight: 700 }}
-              >
-                Choose Neutral
-              </button>
-            </div>
+            <p className={styles.sheetText}>{Math.min(rematchVotesCount, 2)} of 2 players ready</p>
+            <button
+              className={`${styles.btn} ${styles.btnPrimary}`}
+              onClick={() => socket.emit("game:requestRematch", { gameId })}
+              disabled={hasVotedForRematch}
+            >
+              {hasVotedForRematch ? "Waiting for opponent…" : "Rematch"}
+            </button>
+            <button className={styles.btn} onClick={() => socket.emit("game:end", { gameId })}>
+              Back to menu
+            </button>
           </div>
         </div>
       ) : null}

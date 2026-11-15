@@ -16,7 +16,8 @@ type Wrestler = {
 type Props = {
   me: Wrestler | null;
   opponent: Wrestler | null;
-  height: number;
+  className?: string;
+  svgClassName?: string;
 };
 
 const SKIN = "#f1c9a5";
@@ -89,7 +90,7 @@ function RefereeScene({ top, bottom }: { top: Wrestler; bottom: Wrestler }) {
   );
 }
 
-export default function WrestlingMat({ me, opponent, height }: Props) {
+export default function WrestlingMat({ me, opponent, className, svgClassName }: Props) {
   if (!me || !opponent) return null;
 
   const top = me.position === "TOP" ? me : opponent.position === "TOP" ? opponent : null;
@@ -101,8 +102,8 @@ export default function WrestlingMat({ me, opponent, height }: Props) {
   const sceneKey = isReferee ? `ref-${top!.name}` : "neutral";
 
   return (
-    <div style={{ display: "grid", justifyItems: "center", gap: 2 }} aria-label={`Wrestling mat: ${caption}`}>
-      <svg viewBox="0 0 200 80" style={{ height, width: "auto", maxWidth: "100%", overflow: "visible" }} role="img">
+    <div className={className} aria-label={`Wrestling mat: ${caption}`}>
+      <svg viewBox="0 0 200 80" className={svgClassName} style={{ overflow: "visible" }} role="img">
         {/* The mat: outer circle and center starting circle. */}
         <ellipse cx={100} cy={64} rx={96} ry={14} fill="rgba(18, 73, 148, 0.85)" stroke="rgba(255,255,255,0.35)" />
         <ellipse cx={100} cy={64} rx={40} ry={6} fill="rgba(196, 38, 38, 0.75)" />
@@ -110,7 +111,7 @@ export default function WrestlingMat({ me, opponent, height }: Props) {
           {isReferee ? <RefereeScene top={top!} bottom={bottom!} /> : <NeutralScene left={me} right={opponent} />}
         </g>
       </svg>
-      <div style={{ fontSize: 12, opacity: 0.9 }}>{caption}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.9 }}>{caption}</div>
     </div>
   );
 }
